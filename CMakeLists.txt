@@ -657,12 +657,12 @@ if(BUILD_TESTING OR WITH_TESTS)
   # Enable coverage in main hyprland lib
   target_compile_options(hyprland_lib PRIVATE --coverage)
   target_link_options(hyprland_lib PRIVATE --coverage)
-  target_link_libraries(hyprland_lib PUBLIC gcov)
+  # Note: do NOT link gcov explicitly — clang --coverage links its own runtime
 
   # Enable coverage in hyprland exe
   target_compile_options(Hyprland PRIVATE --coverage)
   target_link_options(Hyprland PRIVATE --coverage)
-  target_link_libraries(Hyprland gcov)
+  # Note: do NOT link gcov explicitly — clang --coverage links its own runtime
 endif()
 
 if(BUILD_TESTING)
