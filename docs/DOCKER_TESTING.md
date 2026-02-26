@@ -30,7 +30,7 @@ cmake --build build -j$(nproc)
 # cmake --build /tmp/hypr-build -j$(nproc)
 ```
 
-### Option 2: Docker CLI
+### Option 2: Docker CLI (Linux/macOS)
 
 ```bash
 # Build the image
@@ -45,9 +45,58 @@ docker run -it --rm \
   spatial-hypr:dev bash
 ```
 
+### Option 2B: Docker CLI on Windows (PowerShell)
+
+```powershell
+# Build the image
+docker build -f Dockerfile.spatial-dev -t spatial-hypr:dev .
+
+# Run the container with source mounted
+docker run -it --rm `
+  --name spatial-dev `
+  -v "C:\projects\Hyprland:/home/spatial/Hyprland" `
+  -e XDG_RUNTIME_DIR=/run/user/1000 `
+  -e WLR_BACKENDS=headless `
+  spatial-hypr:dev bash
+```
+
+**Note for Windows:** Use backticks (`) for line continuation, not backslashes (\).
+
 ---
 
 ## Building Spatial Hyprland in Container
+
+### 0. First-Time Container Setup
+
+**Important:** The Docker image may not have all Hyprland dependencies pre-installed. Complete this setup on first run:
+
+```bash
+# Inside container, install AUR helper (one-time)
+git clone https://aur.archlinux.org/yay-bin.git /tmp/yay
+cd /tmp/yay
+makepkg -si --noconfirm
+
+# Install all Hyprland AUR dependencies
+yay -S --noconfirm \
+  aquamarine-git \
+  hyprlang-git \
+  libhyprutils-git \
+  hyprcursor-git \
+  hyprwayland-scanner-git \
+  hyprgraphics-git \
+  hyprwire-git
+
+# Install required Arch official packages
+sudo pacman -S --noconfirm re2 muparser
+
+# Verify installations
+echo "✅ Checking installed packages..."
+pkg-config --modversion aquamarine
+pkg-config --modversion hyprlang
+pkg-config --modversion libhyprutils
+```
+
+If any package is missing, CMake will fail with `Package 'xxx' not found` error.
 
 ### 1. Configure the Build
 
@@ -79,13 +128,45 @@ cmake --build build -j$(nproc) --verbose
 
 ### 3. Validate Shaders
 
-```bash
-# Validate GLSL shaders
-glslangValidator -V src/render/shaders/depth_spatial.frag
-glslangValidator -V src/render/shaders/depth_dof.frag
-glslangValidator -V src/render/shaders/passthrough_ar.frag
+Before building, validate GLSL shaders:
 
-# Should output: "Validation succeeded"
+```bash
+# Inside container — Linux/macOS
+bash scripts/validate-shaders.sh
+
+# OR on Windows PowerShell (from host)
+docker exec spatial-dev bash -c "bash scripts/validate-shaders.sh"
+
+# Expected output
+# ✅ depth_spatial.frag
+# ✅ depth_dof.frag
+# ✅ passthrough_ar.frag
+```
+
+If any shader fails validation, the build will continue but rendering **will fail at runtime**. Fix shader syntax before building.
+
+### 4. Build the Project
+
+```bash
+# Build with all CPU cores
+cmake --build build -j$(nproc)
+
+# OR: Build verbose to see compilation commands
+cmake --build build -j$(nproc) --verbose
+```
+
+### 5. Check Build Warnings
+
+After successful build, check for any compiler warnings:
+
+```bash
+# Capture build output to file for analysis
+cmake --build build -j$(nproc) 2>&1 | tee build.log
+
+# Count warnings
+grep -i "warning" build.log | wc -l
+
+# Should output: 0 (no warnings expected)
 ```
 
 ---
@@ -351,7 +432,59 @@ cmake --build build -j$(nproc)
 
 ## Troubleshooting
 
-### "Permission denied" on /dev/dri
+### Windows-Specific Issues
+
+#### "The system cannot find the path specified"
+
+**Error:**
+```powershell
+cd : Cannot find path 'C:\home\spatial\Hyprland' because it does not exist.
+```
+
+**Cause:** PowerShell $() syntax not supported in docker run  
+**Solution:** Use backticks for line continuation
+```powershell
+# ❌ WRONG (Linux bash syntax)
+docker run -it --rm \
+  -v "$(pwd):/home/spatial/Hyprland"
+
+# ✅ CORRECT (Windows PowerShell syntax)  
+docker run -it --rm `
+  -v "C:\projects\Hyprland:/home/spatial/Hyprland"
+```
+
+#### "Docker Desktop API 500 Error"
+
+**Error:**
+```
+request returned 500 Internal Server Error for API route and version
+```
+
+**Solution:** Restart Docker Desktop completely
+```powershell
+# PowerShell as Administrator
+Get-Process docker* | Stop-Process -Force
+Start-Sleep -Seconds 5
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+Start-Sleep -Seconds 30
+docker ps  # Test connection
+```
+
+#### Docker Container Exits Immediately
+
+**Error:** Started container with `docker run ... bash` but it exits  
+**Solution:** Add `-i` (interactive) flag
+```powershell
+# ❌ May exit immediately
+docker run -t --rm -v "..." spatial-hypr:dev bash
+
+# ✅ Keep running
+docker run -it --rm -v "..." spatial-hypr:dev bash
+```
+
+---
+
+### Linux-Specific Issues "Permission denied" on /dev/dri
 
 ```bash
 # Run with device access
