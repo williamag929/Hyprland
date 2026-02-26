@@ -4,6 +4,11 @@
 #include <glm/glm.hpp>
 #include <memory>
 
+// Forward declarations
+namespace Desktop::View {
+    class CWindow;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SPATIAL OS: Z-Space Management
 // ══════════════════════════════════════════════════════════════════════════════
