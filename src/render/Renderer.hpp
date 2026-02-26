@@ -168,7 +168,7 @@ class CHyprRenderer {
 
     // [SPATIAL] Spatial rendering helpers
     void applySpatialShaderUniforms(PHLWINDOW pWindow);
-    WP<Shader::CShader> selectSpatialShader(PHLWINDOW pWindow);
+    WP<CShader> selectSpatialShader(PHLWINDOW pWindow);
 
     friend class CHyprOpenGLImpl;
     friend class CToplevelExportFrame;

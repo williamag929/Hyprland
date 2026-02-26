@@ -10,21 +10,61 @@
 ## 🚀 Quick Start (TL;DR)
 
 ```bash
-# For experienced Arch developers (5-minute setup)
+# For experienced Arch developers (complete setup)
+
+# Step 1: System dependencies
 sudo pacman -Syu
-sudo pacman -S base-devel cmake ninja clang glslang wayland wlroots
+sudo pacman -S --needed base-devel git go clang cmake meson openssh \
+    wayland wayland-protocols glm spdlog nlohmann-json glslang \
+    libxkbcommon libxcursor re2 muparser pkgconf \
+    xcb-util-wm xcb-util-errors valgrind gtest
 
-git clone https://aur.archlinux.org/yay-bin.git /tmp/yay && cd /tmp/yay && makepkg -si --noconfirm
-yay -S aquamarine-git hyprlang-git libhyprutils-git hyprcursor-git hyprwayland-scanner-git hyprgraphics-git hyprwire-git
+# Step 2: Install yay (AUR helper)
+cd ~
+git clone https://aur.archlinux.org/yay.git
+cd yay
+makepkg -si
+cd ..
 
+# Step 3: AUR dependencies
+yay -S aquamarine-git hyprlang-git libhyprutils-git hyprcursor-git \
+       hyprgraphics-git hyprwayland-scanner-git hyprwire-git
+
+# Step 4: Clone and build
+git clone https://github.com/YOUR_ORG/spatial-hypr.git
+cd spatial-hypr
 git checkout Space-Z
+git submodule update --init --recursive
 bash scripts/validate-shaders.sh
 cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++
 cmake --build build -j$(nproc)
 ctest --test-dir build -R "spatial" --output-on-failure
 ```
 
-**⏱️ Total time:** ~40 minutes (15 min deps + 25 min build)
+**⏱️ Total time:** ~40-50 minutes (15-20 min deps + 25 min build)
+
+---
+
+## ⚠️ Docker Notes
+
+**For Windows/macOS users:** Docker builds require pre-building all AUR packages into the Docker image itself. See [BUILD_TROUBLESHOOTING.md](BUILD_TROUBLESHOOTING.md) for alternative approaches.
+
+**Recommended:** Use native Arch Linux VM or WSL2 with Arch for faster iteration:
+```bash
+# WSL2 installation
+wsl --install -d Arch  # Or download ArchWSL from GitHub
+wsl -d Arch
+
+# Then follow the native Linux setup above
+```
+
+**Docker (advanced users):** Building the complete Docker image takes 60-90 minutes:
+```bash
+docker build -f Dockerfile.spatial-dev -t spatial-hypr:dev .
+docker run -it --rm -v "$(pwd):/home/spatial/Hyprland" spatial-hypr:dev bash
+```
+
+For Docker issues, see [BUILD_TROUBLESHOOTING.md](BUILD_TROUBLESHOOTING.md) "Docker with Pre-Built Base Image" section.
 
 ---
 
@@ -59,19 +99,26 @@ sudo pacman -Syu
 
 ---
 
-### Step 2: Install Build Tools
+### Step 2: Install Build Tools & System Dependencies
 
 ```bash
-sudo pacman -S --noconfirm \
-  base-devel \
-  cmake \
-  ninja \
-  clang \
-  git \
-  glslang \
-  valgrind \
-  gtest
+sudo pacman -S --needed \
+  base-devel git go clang cmake meson openssh \
+  wayland wayland-protocols glm spdlog nlohmann-json glslang \
+  libxkbcommon libxcursor re2 muparser pkgconf \
+  xcb-util-wm xcb-util-errors \
+  valgrind gtest
 ```
+
+**⏱️ Expected time:** 5-10 minutes
+
+**What's included:**
+- **Build tools:** base-devel, cmake, meson, clang, git, go
+- **Wayland:** wayland, wayland-protocols  
+- **Graphics:** glm, spdlog, nlohmann-json, glslang
+- **X11/XCB:** libxkbcommon, libxcursor, xcb-util-wm, xcb-util-errors
+- **Utilities:** re2, muparser, pkgconf, openssh
+- **Testing:** valgrind, gtest
 
 **Verification:**
 ```bash
@@ -167,6 +214,7 @@ yay -S aquamarine-git --rebuild
 
 ```bash
 # Clone Hyprland fork (if not already done)
+git clone https://github.com/williamag929/Hyprland.git
 git clone https://github.com/hyprwm/Hyprland.git spatial-hyprland
 cd spatial-hyprland
 

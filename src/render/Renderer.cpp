@@ -2758,7 +2758,7 @@ bool CHyprRenderer::shouldBlur(WP<Desktop::View::CPopup> p) {
     return *PBLURPOPUPS && *PBLUR;
 }
 // [SPATIAL] Select appropriate spatial shader based on window Z position
-WP<Shader::CShader> CHyprRenderer::selectSpatialShader(PHLWINDOW pWindow) {
+WP<CShader> CHyprRenderer::selectSpatialShader(PHLWINDOW pWindow) {
     if (!g_pZSpaceManager || !pWindow)
         return nullptr;
 
@@ -2780,7 +2780,7 @@ void CHyprRenderer::applySpatialShaderUniforms(PHLWINDOW pWindow) {
         return;
 
     // Get currently bound shader
-    WP<Shader::CShader> pShader = selectSpatialShader(pWindow);
+    WP<CShader> pShader = selectSpatialShader(pWindow);
     if (!pShader.lock())
         return;
 
