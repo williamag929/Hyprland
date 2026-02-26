@@ -395,6 +395,15 @@ void CHyprRenderer::renderWorkspaceWindows(PHLMONITOR pMonitor, PHLWORKSPACE pWo
         windows.emplace_back(w);
     }
 
+    // [SPATIAL] Depth sorting — painter's algorithm (back to front by Z coordinate)
+    if (g_pZSpaceManager) {
+        std::sort(windows.begin(), windows.end(),
+            [](const PHLWINDOWREF& a, const PHLWINDOWREF& b) {
+                return a->m_sSpatialProps.fZPosition < b->m_sSpatialProps.fZPosition;
+            }
+        );
+    }
+
     // Non-floating main
     for (auto& w : windows) {
         if (w->m_isFloating)
@@ -1280,6 +1289,14 @@ void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
         return;
     }
 
+    // [SPATIAL] Initialize Z-space manager on first valid monitor
+    static bool spatialInitialized = false;
+    if (!spatialInitialized && g_pZSpaceManager) {
+        g_pZSpaceManager->init(pMonitor->m_pixelSize.x, pMonitor->m_pixelSize.y);
+        Log::logger->log(Log::DEBUG, "ZSpaceManager initialized with dimensions {}x{}", pMonitor->m_pixelSize.x, pMonitor->m_pixelSize.y);
+        spatialInitialized = true;
+    }
+
     if (!*PDAMAGEBLINK)
         damageBlinkCleanup = 0;
 
@@ -1332,6 +1349,18 @@ void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
     Event::bus()->m_events.render.pre.emit(pMonitor);
 
     const auto NOW = Time::steadyNow();
+
+    // [SPATIAL] Update Z-space animations each frame
+    if (g_pZSpaceManager) {
+        static auto lastFrameTime = NOW;
+        auto deltaTime = std::chrono::duration<float>(NOW - lastFrameTime).count();
+        g_pZSpaceManager->update(deltaTime);
+        lastFrameTime = NOW;
+
+        // [SPATIAL] Compute spatial projection matrices for this frame
+        g_pHyprOpenGL->m_renderData.spatialProjection = g_pZSpaceManager->getSpatialProjection();
+        g_pHyprOpenGL->m_renderData.spatialView       = g_pZSpaceManager->getSpatialView();
+    }
 
     // check the damage
     bool hasChanged = pMonitor->m_output->needsFrame || pMonitor->m_damage.hasChanged();
@@ -2727,4 +2756,51 @@ bool CHyprRenderer::shouldBlur(WP<Desktop::View::CPopup> p) {
     static CConfigValue PBLUR       = CConfigValue<Hyprlang::INT>("decoration:blur:enabled");
 
     return *PBLURPOPUPS && *PBLUR;
+}
+// [SPATIAL] Select appropriate spatial shader based on window Z position
+WP<Shader::CShader> CHyprRenderer::selectSpatialShader(PHLWINDOW pWindow) {
+    if (!g_pZSpaceManager || !pWindow)
+        return nullptr;
+
+    // For now, use depth_spatial shader for all Z-managed windows
+    // Future: Use depth_dof for far background windows
+    const int layer = pWindow->m_sSpatialProps.iZLayer;
+    
+    if (layer == 3) {
+        // Far layer uses depth-of-field for stronger effect
+        return g_pHyprOpenGL->m_shaders->frag[SH_FRAG_SPATIAL_DOF];
+    }
+
+    return g_pHyprOpenGL->m_shaders->frag[SH_FRAG_SPATIAL_DEPTH];
+}
+
+// [SPATIAL] Apply Z-space shader uniforms for depth rendering
+void CHyprRenderer::applySpatialShaderUniforms(PHLWINDOW pWindow) {
+    if (!g_pZSpaceManager || !pWindow || !g_pHyprOpenGL->m_shaders)
+        return;
+
+    // Get currently bound shader
+    WP<Shader::CShader> pShader = selectSpatialShader(pWindow);
+    if (!pShader.lock())
+        return;
+
+    auto shader = pShader.lock();
+
+    // Set perspective projection matrix
+    shader->setUniformMatrix4fv(SHADER_SPATIAL_PROJ, 1, GL_FALSE, g_pHyprOpenGL->m_renderData.spatialProjection);
+
+    // Set camera view matrix
+    shader->setUniformMatrix4fv(SHADER_SPATIAL_VIEW, 1, GL_FALSE, g_pHyprOpenGL->m_renderData.spatialView);
+
+    // Set normalized Z depth (0 = far, 1 = near)
+    const float zNorm = (pWindow->m_sSpatialProps.fZPosition - (-2800.0f)) / 2800.0f;  // normalize to [0, 1]
+    shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
+
+    // Set blur radius based on layer
+    shader->setUniformFloat(SHADER_BLUR_RADIUS, pWindow->m_sSpatialProps.fDepthNorm > 0.0f ? 
+        g_pZSpaceManager->getWindowBlurRadius(reinterpret_cast<void*>(pWindow)) : 0.0f);
+
+    Log::logger->log(Log::DEBUG, "[SPATIAL] Applied shader uniforms: Z={}, blur={}", 
+                    pWindow->m_sSpatialProps.fZPosition, 
+                    pWindow->m_sSpatialProps.fDepthNorm);
 }

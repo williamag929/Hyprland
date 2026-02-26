@@ -1,0 +1,97 @@
+# Spatial Hyprland Development Container
+# Base: Arch Linux with full Wayland/wlroots stack
+# Usage: docker build -f Dockerfile.spatial-dev -t spatial-hypr:dev .
+
+FROM archlinux:latest
+
+# Update system and install base development tools
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+    base-devel \
+    git \
+    cmake \
+    meson \
+    ninja \
+    clang \
+    llvm \
+    pkgconf \
+    wget \
+    unzip
+
+# Install Wayland/wlroots dependencies
+RUN pacman -S --noconfirm \
+    wayland \
+    wayland-protocols \
+    wlroots0.18 \
+    libxkbcommon \
+    pixman \
+    libdrm \
+    mesa \
+    xorg-xwayland \
+    cairo \
+    pango \
+    libinput \
+    libliftoff \
+    libdisplay-info \
+    xcb-util-wm \
+    xcb-util-errors \
+    seatd \
+    libxcb \
+    xcb-util-image \
+    xcb-util-keysyms
+
+# Install OpenGL/graphics dependencies
+RUN pacman -S --noconfirm \
+    glm \
+    glslang \
+    vulkan-headers \
+    vulkan-icd-loader
+
+# Note: aquamarine will be installed on-demand during CMake configuration
+# If it's missing, CMake will fail with a clear message
+
+# Install testing and validation tools
+RUN pacman -S --noconfirm \
+    gtest \
+    valgrind \
+    clang-tools-extra \
+    gdb \
+    strace
+
+# Install runtime dependencies for nested Wayland
+RUN pacman -S --noconfirm \
+    weston \
+    xorg-server-xwayland \
+    kitty \
+    foot
+
+# Install optional tools for development
+RUN pacman -S --noconfirm \
+    vim \
+    nano \
+    htop \
+    less
+
+# Create non-root user for running Wayland
+RUN useradd -m -G video,input -s /bin/bash spatial && \
+    echo "spatial ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Set up Wayland runtime directory
+RUN mkdir -p /run/user/1000 && \
+    chown -R spatial:spatial /run/user/1000
+
+# Switch to non-root user
+USER spatial
+WORKDIR /home/spatial
+
+# Set environment variables
+ENV XDG_RUNTIME_DIR=/run/user/1000
+ENV WLR_BACKENDS=headless
+ENV WLR_RENDERER=pixman
+ENV WLR_LIBINPUT_NO_DEVICES=1
+ENV PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig
+
+# Copy source code (done at build time)
+# Note: Source will be mounted as volume in docker run
+
+CMD ["/bin/bash"]

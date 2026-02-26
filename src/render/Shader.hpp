@@ -3,6 +3,7 @@
 #include "../defines.hpp"
 #include <array>
 #include <variant>
+#include <glm/glm.hpp>
 
 enum eShaderUniform : uint8_t {
     SHADER_PROJ = 0,
@@ -75,6 +76,12 @@ enum eShaderUniform : uint8_t {
     SHADER_POINTER_INACTIVE_TIMEOUT,
     SHADER_POINTER_LAST_ACTIVE,
     SHADER_POINTER_SIZE,
+    
+    // [SPATIAL] Z-space rendering uniforms
+    SHADER_SPATIAL_PROJ,        // spatial projection matrix (mat4)
+    SHADER_SPATIAL_VIEW,        // spatial view matrix (mat4)
+    SHADER_Z_DEPTH,             // window Z depth normalized 0-1
+    SHADER_BLUR_RADIUS,         // blur radius in pixels
 
     SHADER_LAST,
 };
@@ -92,6 +99,8 @@ class CShader {
     void   setUniformFloat4(eShaderUniform location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
     void   setUniformMatrix3fv(eShaderUniform location, GLsizei count, GLboolean transpose, std::array<GLfloat, 9> value);
     void   setUniformMatrix4x2fv(eShaderUniform location, GLsizei count, GLboolean transpose, std::array<GLfloat, 8> value);
+    // [SPATIAL] 4x4 matrix support for perspective projection
+    void   setUniformMatrix4fv(eShaderUniform location, GLsizei count, GLboolean transpose, const glm::mat4& value);
     void   setUniform1fv(eShaderUniform location, GLsizei count, const std::vector<float>& value);
     void   setUniform2fv(eShaderUniform location, GLsizei count, const std::vector<float>& value);
     void   setUniform4fv(eShaderUniform location, GLsizei count, const std::vector<float>& value);
@@ -118,6 +127,13 @@ class CShader {
         std::array<GLfloat, 8> value     = {};
     };
 
+    // [SPATIAL] 4x4 matrix data structure
+    struct SUniformMatrix4fvData {
+        GLsizei               count     = 0;
+        GLboolean             transpose = false;
+        std::array<GLfloat, 16> value     = {};
+    };
+
     struct SUniformVData {
         GLsizei            count = 0;
         std::vector<float> value;
@@ -125,7 +141,7 @@ class CShader {
 
     //
     std::array<std::variant<std::monostate, GLint, GLfloat, std::array<GLfloat, 2>, std::array<GLfloat, 3>, std::array<GLfloat, 4>, SUniformMatrix3Data, SUniformMatrix4Data,
-                            SUniformVData>,
+                            SUniformMatrix4fvData, SUniformVData>,
                SHADER_LAST>
         uniformStatus;
     //

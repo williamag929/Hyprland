@@ -166,6 +166,10 @@ class CHyprRenderer {
     std::vector<PHLWINDOWREF>      m_renderUnfocused;
     SP<CEventLoopTimer>            m_renderUnfocusedTimer;
 
+    // [SPATIAL] Spatial rendering helpers
+    void applySpatialShaderUniforms(PHLWINDOW pWindow);
+    WP<Shader::CShader> selectSpatialShader(PHLWINDOW pWindow);
+
     friend class CHyprOpenGLImpl;
     friend class CToplevelExportFrame;
     friend class Screenshare::CScreenshareFrame;

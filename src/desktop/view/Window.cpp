@@ -1669,6 +1669,11 @@ void CWindow::mapWindow() {
     m_initialTitle  = m_title;
     m_initialClass  = fetchClass();
 
+    // [SPATIAL] Assign window to default Foreground layer on map
+    if (g_pZSpaceManager) {
+        g_pZSpaceManager->assignWindowToLayer(reinterpret_cast<void*>(this), 0);  // 0 = Foreground layer
+    }
+
     // check for token
     std::string requestedWorkspace = "";
     bool        workspaceSilent    = false;

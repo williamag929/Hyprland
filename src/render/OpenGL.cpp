@@ -963,6 +963,9 @@ bool CHyprOpenGLImpl::initShaders() {
             {SH_FRAG_BLURFINISH, "blurfinish.frag"},
             {SH_FRAG_SHADOW, "shadow.frag"},
             {SH_FRAG_BORDER1, "border.frag"},
+            // [SPATIAL] Spatial rendering shaders
+            {SH_FRAG_SPATIAL_DEPTH, "depth_spatial.frag"},
+            {SH_FRAG_SPATIAL_DOF, "depth_dof.frag"},
         }};
 
         for (const auto& desc : FRAG_SHADERS) {
@@ -1432,6 +1435,38 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
         shader = getSurfaceShader(shaderFeatures);
 
     shader = useShader(shader);
+
+    // [SPATIAL] Override shader for spatial Z-depth rendering if active
+    if (!usingFinalShader && m_renderData.currentWindow && g_pZSpaceManager && 
+        m_renderData.currentWindow->m_sSpatialProps.bZManaged) {
+        
+        // Select appropriate spatial shader based on window layer
+        const int layer = m_renderData.currentWindow->m_sSpatialProps.iZLayer;
+        WP<CShader> spatialShader;
+        
+        if (layer == 3) {
+            // Far layer uses depth-of-field for stronger effect
+            spatialShader = m_shaders->frag[SH_FRAG_SPATIAL_DOF];
+        } else {
+            // Standard spatial depth shader for other layers
+            spatialShader = m_shaders->frag[SH_FRAG_SPATIAL_DEPTH];
+        }
+        
+        if (spatialShader && spatialShader->program() > 0) {
+            shader = useShader(spatialShader);
+            
+            // Apply spatial-specific uniforms for depth rendering
+            // Normalize Z depth to [0, 1] scale (0 = far, 1 = near)
+            const float zNorm = (m_renderData.currentWindow->m_sSpatialProps.fZPosition - (-2800.0f)) / 2800.0f;
+            shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
+            
+            // Get blur radius from ZSpaceManager based on layer
+            const float blurRadius = g_pZSpaceManager->getWindowBlurRadius(
+                reinterpret_cast<void*>(m_renderData.currentWindow.lock().get())
+            );
+            shader->setUniformFloat(SHADER_BLUR_RADIUS, blurRadius);
+        }
+    }
 
     if (!skipCM && !usingFinalShader) {
         if (data.cmBackToSRGB)

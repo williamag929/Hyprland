@@ -13,6 +13,7 @@
 #include <string>
 #include <stack>
 #include <map>
+#include <glm/glm.hpp>
 
 #include <cairo/cairo.h>
 
@@ -101,6 +102,10 @@ enum ePreparedFragmentShader : uint8_t {
     SH_FRAG_CM_BORDER1,
     SH_FRAG_BORDER1,
     SH_FRAG_GLITCH,
+    
+    // [SPATIAL] Depth-based spatial rendering shaders
+    SH_FRAG_SPATIAL_DEPTH,      // main spatial depth shader with blur + fade
+    SH_FRAG_SPATIAL_DOF,        // depth-of-field variant for far backgrounds
 
     SH_FRAG_LAST,
 };
@@ -156,6 +161,10 @@ struct SCurrentRenderData {
     Mat3x3        projection;
     Mat3x3        savedProjection;
     Mat3x3        monitorProjection;
+
+    // [SPATIAL] 3D spatial rendering matrices
+    glm::mat4     spatialProjection = glm::mat4(1.0f);  // perspective projection for Z-depth
+    glm::mat4     spatialView       = glm::mat4(1.0f);  // camera view matrix following Z-depth
 
     // FIXME: raw pointer galore!
     SMonitorRenderData*    pCurrentMonData = nullptr;

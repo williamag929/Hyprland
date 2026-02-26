@@ -1,0 +1,41 @@
+# Docker Compose for Spatial Hyprland Development
+# Usage: docker-compose -f docker-compose.spatial.yml up -d
+
+version: '3.8'
+
+services:
+  spatial-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.spatial-dev
+    container_name: spatial-hypr-dev
+    
+    # Mount source code as volume
+    volumes:
+      - .:/home/spatial/Hyprland
+      - spatial-build:/home/spatial/Hyprland/build
+    
+    # Keep container running
+    stdin_open: true
+    tty: true
+    
+    # Environment for Wayland development
+    environment:
+      - XDG_RUNTIME_DIR=/run/user/1000
+      - WAYLAND_DISPLAY=wayland-0
+      - WLR_BACKENDS=headless
+      - WLR_RENDERER=pixman
+      - WLR_LIBINPUT_NO_DEVICES=1
+    
+    # Required for DRM/graphics access (if testing with GPU)
+    # Uncomment for GPU passthrough:
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # privileged: true
+    
+    working_dir: /home/spatial/Hyprland
+    
+    command: /bin/bash
+
+volumes:
+  spatial-build:

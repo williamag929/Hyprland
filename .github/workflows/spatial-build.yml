@@ -1,0 +1,171 @@
+name: Spatial OS Build and Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build:
+    name: Build Spatial-Hypr Fork
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Update system and install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake meson git clang llvm \
+            wayland wayland-protocols wlroots \
+            libxkbcommon libinput libudev libdrm \
+            pixman libxcb xcb-util-image xcb-util-keysyms xcb-util-wm \
+            xorg-server-xvfb \
+            glm spdlog nlohmann-json \
+            gtest google-benchmark \
+            hyprlang hyprland-protocols \
+            glslang vulkan-headers
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang \
+            -DENABLE_SPATIAL=ON
+
+      - name: Build project
+        run: cmake --build build -j$(nproc)
+
+      - name: Run clang-tidy linting
+        run: |
+          # Analizar solo archivos en src/spatial
+          clang-tidy --format-style=file \
+            src/spatial/*.hpp src/spatial/*.cpp \
+            -checks=-*,clang-diagnostic-*,-clang-diagnostic-error,-clang-diagnostic-warning \
+            -- -I/usr/include -I./build
+
+      - name: Validate GLSL shaders
+        run: |
+          glslangValidator -V src/render/shaders/depth_spatial.frag
+          glslangValidator -V src/render/shaders/depth_dof.frag
+          glslangValidator -V src/render/shaders/passthrough_ar.frag
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest -R "spatial" --output-on-failure -VV
+
+      - name: Run memory leak checks (valgrind)
+        continue-on-error: true
+        run: |
+          pacman -S --noconfirm valgrind
+          cd build
+          # Ejecutar tests bajo valgrind
+          ctest -R "spatial" --output-on-failure \
+            -E "long|slow" \
+            -D ExperimentalMemCheck 2>&1 | grep -E "ERROR|LEAK|Valgrind"
+
+      - name: Generate test coverage report
+        run: |
+          pacman -S --noconfirm lcov
+          cd build
+          lcov --capture --directory . \
+               --output-file coverage.info \
+               --include "*spatialOS*" \
+               --exclude "*test*"
+
+      - name: Build package
+        run: |
+          cd build
+          cpack -G TGZ
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-hypr-build-${{ matrix.system }}
+          path: |
+            build/*.tar.gz
+            build/compile_commands.json
+
+  # Job opcional para verificar compilación en modo Release
+  build-release:
+    name: Release Build
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Install minimal dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel cmake clang wlroots glslang
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake for Release
+        run: |
+          cmake -B build-release \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=OFF
+
+      - name: Build Release
+        run: cmake --build build-release -j$(nproc)
+
+      # Este job NO ejecuta tests completos (solo validación básica)
+      - name: Validate shaders
+        run: |
+          glslangValidator -V src/render/shaders/depth_spatial.frag
+          glslangValidator -V src/render/shaders/depth_dof.frag
+          glslangValidator -V src/render/shaders/passthrough_ar.frag
+
+  # Job para sincronización con upstream Hyprland
+  upstream-sync-check:
+    name: Upstream Hyprland Compatibility
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel cmake clang git
+
+      - name: Checkout our fork
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Fetch upstream Hyprland
+        run: |
+          git remote add upstream https://github.com/hyprwm/Hyprland.git || true
+          git fetch upstream main --depth=1
+
+      - name: Check for conflicting changes with upstream
+        run: |
+          # Listar commits que tocan archivos de upstream
+          echo "Commits que tocan archivos upstream:"
+          git log upstream/main..HEAD --oneline -- \
+            src/Compositor.cpp src/render/Renderer.cpp src/Window.hpp \
+            src/managers/input/InputManager.cpp || true
+
+          # Validar que todos los commits espaciales tengan prefijo [SPATIAL]
+          if git log upstream/main..HEAD --oneline | grep -v "^\[SPATIAL\]" | grep -v "^\[FORK\]" | head -5; then
+            echo "⚠️ Algunos commits no tienen prefijo [SPATIAL] o [FORK]"
+            echo "Por favor, actualizar mensajes de commits"
+          fi

@@ -248,6 +248,18 @@ namespace Desktop::View {
 
         bool       m_tearingHint = false;
 
+        // ── SPATIAL OS: Z-Space properties ──────────────────────────────────────
+        struct SSpatialProps {
+            float  fZPosition   = 0.0f;   // posición Z actual (unidades de mundo)
+            float  fZTarget     = 0.0f;   // posición Z objetivo (para animación)
+            float  fZVelocity   = 0.0f;   // velocidad actual de animación Z  
+            int    iZLayer      = 0;      // capa discreta (0=frente, N=fondo)
+            float  fDepthNorm   = 0.0f;   // 0.0-1.0, normalizado para shaders
+            bool   bZPinned     = false;  // true = no se mueve con la cámara
+            bool   bZManaged    = true;   // false = la app controla su Z
+        } m_sSpatialProps;
+        // ───────────────────────────────────────────────────────────────────────
+
         // Stable ID for ext_foreign_toplevel_list
         const uint64_t m_stableID = 0x2137;
 

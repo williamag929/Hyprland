@@ -640,6 +640,10 @@ void CCompositor::initManagers(eManagersInitStage stage) {
             Log::logger->log(Log::DEBUG, "Creating the TokenManager!");
             g_pTokenManager = makeUnique<CTokenManager>();
 
+            // [SPATIAL] Initialize ZSpaceManager for spatial navigation
+            Log::logger->log(Log::DEBUG, "Creating the ZSpaceManager!");
+            g_pZSpaceManager = makeUnique<Spatial::ZSpaceManager>();
+
             g_pConfigManager->init();
 
             Log::logger->log(Log::DEBUG, "Creating the PointerManager!");

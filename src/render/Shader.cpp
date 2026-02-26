@@ -1,6 +1,7 @@
 #include "Shader.hpp"
 #include "../config/ConfigManager.hpp"
 #include "render/OpenGL.hpp"
+#include <glm/gtc/type_ptr.hpp>
 
 #define EPSILON(x, y) (std::abs((x) - (y)) < 1e-5f)
 
@@ -205,6 +206,12 @@ void CShader::getUniformLocations() {
     m_uniformLocations[SHADER_POINTER_INACTIVE_TIMEOUT]  = getUniform("pointer_inactive_timeout");
     m_uniformLocations[SHADER_POINTER_LAST_ACTIVE]       = getUniform("pointer_last_active");
     m_uniformLocations[SHADER_POINTER_SIZE]              = getUniform("pointer_size");
+    
+    // [SPATIAL] Z-space rendering uniforms
+    m_uniformLocations[SHADER_SPATIAL_PROJ]  = getUniform("u_spatialProjection");
+    m_uniformLocations[SHADER_SPATIAL_VIEW]  = getUniform("u_spatialView");
+    m_uniformLocations[SHADER_Z_DEPTH]       = getUniform("u_zDepth");
+    m_uniformLocations[SHADER_BLUR_RADIUS]   = getUniform("u_blurRadius");
 }
 
 void CShader::createVao() {
@@ -345,6 +352,32 @@ void CShader::setUniformMatrix4x2fv(eShaderUniform location, GLsizei count, GLbo
 
     cached = SUniformMatrix4Data{.count = count, .transpose = transpose, .value = value};
     glUniformMatrix4x2fv(m_uniformLocations[location], count, transpose, value.data());
+}
+
+// [SPATIAL] Set 4x4 matrix uniform for perspective projection
+void CShader::setUniformMatrix4fv(eShaderUniform location, GLsizei count, GLboolean transpose, const glm::mat4& value) {
+    if (m_uniformLocations.at(location) == -1)
+        return;
+
+    auto& cached = uniformStatus.at(location);
+    
+    std::array<GLfloat, 16> floatArray;
+    const float* ptr = glm::value_ptr(value);
+    for (int i = 0; i < 16; ++i)
+        floatArray[i] = ptr[i];
+
+    if (cached.index() != 0) {
+        try {
+            auto val = std::get<SUniformMatrix4fvData>(cached);
+            if (val.count == count && val.transpose == transpose && compareFloat(val.value, floatArray))
+                return;
+        } catch (...) {
+            // Not a mat4 type, proceed with setting
+        }
+    }
+
+    cached = SUniformMatrix4fvData{.count = count, .transpose = transpose, .value = floatArray};
+    glUniformMatrix4fv(m_uniformLocations[location], count, transpose, glm::value_ptr(value));
 }
 
 void CShader::setUniformfv(eShaderUniform location, GLsizei count, const std::vector<float>& value, GLsizei vec_size) {
