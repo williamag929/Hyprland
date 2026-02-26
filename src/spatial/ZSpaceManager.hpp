@@ -4,11 +4,6 @@
 #include <glm/glm.hpp>
 #include <memory>
 
-// Forward declarations
-namespace Desktop::View {
-    class CWindow;
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // SPATIAL OS: Z-Space Management
 // ══════════════════════════════════════════════════════════════════════════════
@@ -96,26 +91,25 @@ public:
     /// @return Coordenada Z en unidades de mundo
     float getCameraZ() const;
 
-    /// @brief Asigna una ventana a una capa específica
     /// @brief Asigna una ventana a una capa Z específica
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow (void* para evitar includes circulares)
     /// @param layer  Índice de capa (0 a Z_LAYERS_COUNT-1)
-    void assignWindowToLayer(CWindow* window, int layer);
+    void assignWindowToLayer(void* window, int layer);
 
     /// @brief Obtiene la capa de una ventana
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow
     /// @return Índice de capa, o -1 si no está registrada
-    int getWindowLayer(CWindow* window) const;
+    int getWindowLayer(void* window) const;
 
     /// @brief Obtiene la posición Z de una ventana
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow
     /// @return Coordenada Z en unidades de mundo
-    float getWindowZ(CWindow* window) const;
+    float getWindowZ(void* window) const;
 
     /// @brief Asigna posición Z continua a una ventana (override de capa)
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow
     /// @param z      Posición Z en unidades de mundo
-    void setWindowZPosition(CWindow* window, float z);
+    void setWindowZPosition(void* window, float z);
 
     // ── Animación ─────────────────────────────────────────────────
     /// @brief Actualiza animaciones Z (llamar cada frame)
@@ -123,14 +117,14 @@ public:
     void update(float deltaTime);
 
     /// @brief Obtiene la posición Z objetivo de una ventana
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow
     /// @return Z objetivo (para debug/visualización)
-    float getWindowZTarget(CWindow* window) const;
+    float getWindowZTarget(void* window) const;
 
     /// @brief Obtiene la velocidad Z actual de una ventana
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow
     /// @return Velocidad en unidades/segundo
-    float getWindowZVelocity(CWindow* window) const;
+    float getWindowZVelocity(void* window) const;
 
     // ── Matrices de proyección ────────────────────────────────────
     /// @brief Calcula matriz de proyección perspectiva
@@ -144,18 +138,18 @@ public:
     /// @brief Obtiene matriz ModelTransform para una ventana
     /// @param window Ventana (CWindow*)
     /// @return Matriz 4x4 que incluye traslación XYZ
-    glm::mat4 getWindowTransform(CWindow* window) const;
+    glm::mat4 getWindowTransform(void* window) const;
 
     // ── Propiedades derivadas ─────────────────────────────────────
     /// @brief Calcula opacidad normalizada (0-1) para una ventana
-    /// @param window Ventana (CWindow*)
+    /// @param window Puntero a ventana CWindow
     /// @return Opacidad en [0, 1]
-    float getWindowOpacity(CWindow* window) const;
+    float getWindowOpacity(void* window) const;
 
     /// @brief Calcula radio de blur (px) para una ventana
-    /// @param window Puntero a la ventana
+    /// @param window Puntero a la ventana CWindow
     /// @return Radio de blur Gaussiano
-    float getWindowBlurRadius(CWindow* window) const;
+    float getWindowBlurRadius(void* window) const;
 
     // ── Debug ─────────────────────────────────────────────────────
     /// @brief Imprime estado actual (debug)

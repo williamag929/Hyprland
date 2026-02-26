@@ -71,7 +71,7 @@ float ZSpaceManager::getCameraZ() const {
     return m_fCameraZ;
 }
 
-void ZSpaceManager::assignWindowToLayer(CWindow* window, int layer) {
+void ZSpaceManager::assignWindowToLayer(void* window, int layer) {
     if (layer < 0 || layer >= Z_LAYERS_COUNT || !window) {
         return;
     }
@@ -99,7 +99,7 @@ void ZSpaceManager::assignWindowToLayer(CWindow* window, int layer) {
     pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
-int ZSpaceManager::getWindowLayer(CWindow* window) const {
+int ZSpaceManager::getWindowLayer(void* window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     const WindowZ* wz = findWindow(window);
@@ -109,7 +109,7 @@ int ZSpaceManager::getWindowLayer(CWindow* window) const {
     return layer;
 }
 
-float ZSpaceManager::getWindowZ(CWindow* window) const {
+float ZSpaceManager::getWindowZ(void* window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     const WindowZ* wz = findWindow(window);
@@ -119,7 +119,7 @@ float ZSpaceManager::getWindowZ(CWindow* window) const {
     return z;
 }
 
-void ZSpaceManager::setWindowZPosition(CWindow* window, float z) {
+void ZSpaceManager::setWindowZPosition(void* window, float z) {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     WindowZ* wz = findWindow(window);
@@ -159,7 +159,7 @@ void ZSpaceManager::update(float deltaTime) {
     pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
-float ZSpaceManager::getWindowZTarget(CWindow* window) const {
+float ZSpaceManager::getWindowZTarget(void* window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     const WindowZ* wz = findWindow(window);
@@ -169,7 +169,7 @@ float ZSpaceManager::getWindowZTarget(CWindow* window) const {
     return target;
 }
 
-float ZSpaceManager::getWindowZVelocity(CWindow* window) const {
+float ZSpaceManager::getWindowZVelocity(void* window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     const WindowZ* wz = findWindow(window);
@@ -193,7 +193,7 @@ glm::mat4 ZSpaceManager::getSpatialView() const {
     );
 }
 
-glm::mat4 ZSpaceManager::getWindowTransform(CWindow* window) const {
+glm::mat4 ZSpaceManager::getWindowTransform(void* window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     const WindowZ* wz = findWindow(window);
@@ -209,7 +209,7 @@ glm::mat4 ZSpaceManager::getWindowTransform(CWindow* window) const {
     return model;
 }
 
-float ZSpaceManager::getWindowOpacity(CWindow* window) const {
+float ZSpaceManager::getWindowOpacity(void* window) const {
     int layer = getWindowLayer(window);
     if (layer < 0 || layer >= Z_LAYERS_COUNT) {
         return 1.0f;
@@ -217,7 +217,7 @@ float ZSpaceManager::getWindowOpacity(CWindow* window) const {
     return LAYER_OPACITY[layer];
 }
 
-float ZSpaceManager::getWindowBlurRadius(CWindow* window) const {
+float ZSpaceManager::getWindowBlurRadius(void* window) const {
     int layer = getWindowLayer(window);
     if (layer < 0 || layer >= Z_LAYERS_COUNT) {
         return 0.0f;
@@ -230,13 +230,13 @@ void ZSpaceManager::debugPrint() const {
               << ", Camera Z: " << m_fCameraZ << std::endl;
 }
 
-ZSpaceManager::WindowZ* ZSpaceManager::findWindow(CWindow* window) {
+ZSpaceManager::WindowZ* ZSpaceManager::findWindow(void* window) {
     auto it = std::find_if(m_vWindowsZ.begin(), m_vWindowsZ.end(),
                            [window](const WindowZ& wz) { return wz.pWindow == window; });
     return (it != m_vWindowsZ.end()) ? &(*it) : nullptr;
 }
 
-const ZSpaceManager::WindowZ* ZSpaceManager::findWindow(PHLWINDOW window) const {
+const ZSpaceManager::WindowZ* ZSpaceManager::findWindow(void* window) const {
     auto it = std::find_if(m_vWindowsZ.begin(), m_vWindowsZ.end(),
                            [window](const WindowZ& wz) { return wz.pWindow == window; });
     return (it != m_vWindowsZ.end()) ? &(*it) : nullptr;
