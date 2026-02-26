@@ -2760,7 +2760,7 @@ bool CHyprRenderer::shouldBlur(WP<Desktop::View::CPopup> p) {
 // [SPATIAL] Select appropriate spatial shader based on window Z position
 WP<CShader> CHyprRenderer::selectSpatialShader(PHLWINDOW pWindow) {
     if (!g_pZSpaceManager || !pWindow)
-        return nullptr;
+        return WP<CShader>();
 
     // For now, use depth_spatial shader for all Z-managed windows
     // Future: Use depth_dof for far background windows
@@ -2798,7 +2798,7 @@ void CHyprRenderer::applySpatialShaderUniforms(PHLWINDOW pWindow) {
 
     // Set blur radius based on layer
     shader->setUniformFloat(SHADER_BLUR_RADIUS, pWindow->m_sSpatialProps.fDepthNorm > 0.0f ? 
-        g_pZSpaceManager->getWindowBlurRadius(reinterpret_cast<void*>(pWindow)) : 0.0f);
+        g_pZSpaceManager->getWindowBlurRadius(pWindow) : 0.0f);
 
     Log::logger->log(Log::DEBUG, "[SPATIAL] Applied shader uniforms: Z={}, blur={}", 
                     pWindow->m_sSpatialProps.fZPosition, 

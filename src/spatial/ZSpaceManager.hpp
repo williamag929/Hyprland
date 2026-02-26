@@ -92,22 +92,22 @@ public:
     float getCameraZ() const;
 
     /// @brief Asigna una ventana a una capa específica
-    /// @param window Puntero a la ventana (CWindow*)
+    /// @param window Ventana a asignar
     /// @param layer  Índice de capa (0 a Z_LAYERS_COUNT-1)
-    void assignWindowToLayer(void* window, int layer);
+    void assignWindowToLayer(PHLWINDOW window, int layer);
 
     /// @brief Obtiene la capa de una ventana
-    /// @param window Puntero a la ventana
+    /// @param window Ventana
     /// @return Índice de capa, o -1 si no está registrada
-    int getWindowLayer(void* window) const;
+    int getWindowLayer(PHLWINDOW window) const;
 
     /// @brief Obtiene la posición Z de una ventana
-    /// @param window Puntero a la ventana
+    /// @param window Ventana
     /// @return Coordenada Z en unidades de mundo
-    float getWindowZ(void* window) const;
+    float getWindowZ(PHLWINDOW window) const;
 
     /// @brief Asigna posición Z continua a una ventana (override de capa)
-    /// @param window Puntero a la ventana
+    /// @param window Ventana
     /// @param z      Posición Z en unidades de mundo
     void setWindowZPosition(void* window, float z);
 
@@ -149,7 +149,7 @@ public:
     /// @brief Calcula radio de blur (px) para una ventana
     /// @param window Puntero a la ventana
     /// @return Radio de blur Gaussiano
-    float getWindowBlurRadius(void* window) const;
+    float getWindowBlurRadius(PHLWINDOW window) const;
 
     // ── Debug ─────────────────────────────────────────────────────
     /// @brief Imprime estado actual (debug)

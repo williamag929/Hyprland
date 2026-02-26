@@ -99,7 +99,7 @@ void ZSpaceManager::assignWindowToLayer(void* window, int layer) {
     pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
-int ZSpaceManager::getWindowLayer(void* window) const {
+int ZSpaceManager::getWindowLayer(PHLWINDOW window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     const WindowZ* wz = findWindow(window);
@@ -217,7 +217,7 @@ float ZSpaceManager::getWindowOpacity(void* window) const {
     return LAYER_OPACITY[layer];
 }
 
-float ZSpaceManager::getWindowBlurRadius(void* window) const {
+float ZSpaceManager::getWindowBlurRadius(PHLWINDOW window) const {
     int layer = getWindowLayer(window);
     if (layer < 0 || layer >= Z_LAYERS_COUNT) {
         return 0.0f;
