@@ -2798,7 +2798,7 @@ void CHyprRenderer::applySpatialShaderUniforms(PHLWINDOW pWindow) {
 
     // Set blur radius based on layer
     shader->setUniformFloat(SHADER_BLUR_RADIUS, pWindow->m_sSpatialProps.fDepthNorm > 0.0f ? 
-        g_pZSpaceManager->getWindowBlurRadius(pWindow) : 0.0f);
+        g_pZSpaceManager->getWindowBlurRadius(pWindow.get()) : 0.0f);
 
     Log::logger->log(Log::DEBUG, "[SPATIAL] Applied shader uniforms: Z={}, blur={}", 
                     pWindow->m_sSpatialProps.fZPosition, 
