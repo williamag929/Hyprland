@@ -884,12 +884,12 @@ void CInputManager::onMouseWheel(IPointer::SAxisEvent e, SP<IPointer> pointer) {
     bool passEvent = g_pKeybindManager->onAxisEvent(e);
 
     // [SPATIAL] Handle scroll for Z-space navigation (layer switching)
-    if (passEvent && e.axis == 1 && g_pZSpaceManager) { // axis == 1 is VERTICAL scroll
+    if (passEvent && e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && g_pZSpaceManager) {
         // Normalize scroll value: positive = scrolling up (move to next/front layer), 
         // negative = scrolling down (move to prev/back layer)
-        if (e.value > 0) {
+        if (e.delta > 0) {
             g_pZSpaceManager->nextLayer();
-        } else if (e.value < 0) {
+        } else if (e.delta < 0) {
             g_pZSpaceManager->prevLayer();
         }
         // After consuming scroll for Z-navigation, prevent further processing
