@@ -5,6 +5,9 @@
 #include <pthread.h>
 #include "../desktop/view/Window.hpp"
 
+// Bring CWindow into scope so it can be used inside namespace Spatial
+using Desktop::View::CWindow;
+
 namespace Spatial {
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -13,7 +16,7 @@ namespace Spatial {
 
 ZSpaceManager::ZSpaceManager()
     : m_iActiveLayer(0), m_fCameraZ(0.0f), m_fCameraZTarget(0.0f),
-      m_iScreenW(0), m_iScreenH(0), m_pMutex(nullptr) {
+      m_fCameraZVelocity(0.0f), m_iScreenW(0), m_iScreenH(0), m_pMutex(nullptr) {
 }
 
 ZSpaceManager::~ZSpaceManager() {
@@ -27,14 +30,14 @@ void ZSpaceManager::init(int screenWidth, int screenHeight) {
     m_iScreenW = screenWidth;
     m_iScreenH = screenHeight;
 
-    // Inicializar mutex
+    // Initialize mutex
     if (!m_pMutex) {
         pthread_mutex_t* mutex = new pthread_mutex_t;
         pthread_mutex_init(mutex, nullptr);
         m_pMutex = (void*)mutex;
     }
 
-    // Cámara comienza en capa 0
+    // Camera begins at layer 0
     m_fCameraZ = LAYER_Z_POSITIONS[0];
     m_fCameraZTarget = m_fCameraZ;
 }
@@ -133,11 +136,19 @@ void ZSpaceManager::setWindowZPosition(void* window, float z) {
 void ZSpaceManager::update(float deltaTime) {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
-    // Actualizar cámara
-    updateSpringAnimation({nullptr, m_fCameraZ, m_fCameraZTarget, 0.0f, 0, false, true},
-                         deltaTime);
+    // Update camera Z with proper spring physics
+    {
+        float delta = m_fCameraZTarget - m_fCameraZ;
+        float accel = (Z_ANIM_STIFFNESS * delta) - (Z_ANIM_DAMPING * m_fCameraZVelocity);
+        m_fCameraZVelocity += accel * deltaTime;
+        m_fCameraZ += m_fCameraZVelocity * deltaTime;
+        if (std::abs(delta) < 0.1f && std::abs(m_fCameraZVelocity) < 0.1f) {
+            m_fCameraZ = m_fCameraZTarget;
+            m_fCameraZVelocity = 0.0f;
+        }
+    }
 
-    // Actualizar todas las ventanas
+    // Update all windows
     for (auto& wz : m_vWindowsZ) {
         updateSpringAnimation(wz, deltaTime);
         
@@ -189,7 +200,7 @@ glm::mat4 ZSpaceManager::getSpatialView() const {
     return glm::lookAt(
         glm::vec3(m_iScreenW / 2.0f, m_iScreenH / 2.0f, camZ + 1200.0f),  // eye
         glm::vec3(m_iScreenW / 2.0f, m_iScreenH / 2.0f, camZ),             // center
-        glm::vec3(0.0f, -1.0f, 0.0f)                                       // up (Y invertido)
+        glm::vec3(0.0f, -1.0f, 0.0f)                                       // up (Y inverted)
     );
 }
 
@@ -199,8 +210,8 @@ glm::mat4 ZSpaceManager::getWindowTransform(void* window) const {
     const WindowZ* wz = findWindow(window);
     glm::mat4 model = glm::mat4(1.0f);
 
-    // TODO: obtener posición XY de la ventana desde CWindow
-    // Por ahora solo usamos Z
+    // TODO: get XY position of window from CWindow
+    // For now we only use Z
     if (wz) {
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, wz->fZPosition));
     }
@@ -250,7 +261,7 @@ void ZSpaceManager::updateSpringAnimation(WindowZ& wz, float dt) {
     wz.fZVelocity += accel * dt;
     wz.fZPosition += wz.fZVelocity * dt;
 
-    // Damping: si está muy cerca del target, detenerla
+    // Damping: if very close to target, stop it
     if (std::abs(delta) < 0.1f && std::abs(wz.fZVelocity) < 0.1f) {
         wz.fZPosition = wz.fZTarget;
         wz.fZVelocity = 0.0f;

@@ -11,13 +11,13 @@
 namespace Spatial {
 
 /// @class SpatialInputHandler
-/// @brief Maneja inputs espaciales (scroll, teclas)
+/// @brief Handles spatial inputs (scroll, keys)
 ///
-/// Intercepta eventos de input y los traduce a navegación Z:
-/// - Scroll sin modificador → navegación discreta entre capas
-/// - Teclas spatial_next_layer / spatial_prev_layer
-/// - Drag derecho → rotación libre (futuro)
-/// - Zoom continuo en Z (futuro)
+/// Intercepts input events and translates them to Z navigation:
+/// - Scroll without modifier → discrete navigation between layers
+/// - spatial_next_layer / spatial_prev_layer keybinds
+/// - Right drag → free rotation (future)
+/// - Continuous Z zoom (future)
 class SpatialInputHandler {
 public:
     SpatialInputHandler();
@@ -31,31 +31,31 @@ public:
     /// @brief Registra callback para cambios de capa
     void setLayerChangeCallback(LayerChangeCallback cb);
 
-    /// @brief Registra callback para cambios de cámara Z
+    /// @brief Register callback for camera Z changes
     void setCameraZChangeCallback(CameraZChangeCallback cb);
 
     // ── Input Processing ──────────────────────────────────────────
-    /// @brief Procesa evento de scroll (rueda) en eje Y/X
-    /// @param scrollY Scroll vertical (positivo = arriba/atrás)
-    /// @param hasModifier true si se presiona un modificador (Ctrl, Alt, etc)
+    /// @brief Process scroll event (wheel) on Y/X axis
+    /// @param scrollY Vertical scroll (positive = up/back)
+    /// @param hasModifier true if modifier is pressed (Ctrl, Alt, etc)
     void processScrollEvent(float scrollY, bool hasModifier);
 
-    /// @brief Procesa evento de keybind "spatial_next_layer"
+    /// @brief Process "spatial_next_layer" keybind event
     void processNextLayerKeybind();
 
-    /// @brief Procesa evento de keybind "spatial_prev_layer"
+    /// @brief Process "spatial_prev_layer" keybind event
     void processPrevLayerKeybind();
 
-    // ── Configuración ─────────────────────────────────────────────
-    /// @brief Establece sensibilidad del scroll para navegación Z
-    /// @param sensitivity Factor de escala (default ~1.0)
+    // ── Configuration ────────────────────────────────────────────────────
+    /// @brief Set scroll sensitivity for Z navigation
+    /// @param sensitivity Scale factor (default ~1.0)
     void setScrollSensitivity(float sensitivity);
 
-    /// @brief Obtiene sensibilidad actual
+    /// @brief Get current scroll sensitivity
     float getScrollSensitivity() const;
 
     // ── Debug ─────────────────────────────────────────────────────
-    /// @brief Imprime configuración de inputs (debug)
+    /// @brief Print input configuration (debug)
     void debugPrint() const;
 
 private:

@@ -18,7 +18,7 @@ bool SpatialConfig::loadFromFile(const std::string& configPath) {
 
     std::ifstream file(configPath);
     if (!file.is_open()) {
-        std::cerr << "[SpatialConfig] No se pudo abrir: " << configPath << std::endl;
+        std::cerr << "[SpatialConfig] Failed to open: " << configPath << std::endl;
         return false;
     }
 
@@ -38,11 +38,11 @@ bool SpatialConfig::reload() {
 }
 
 bool SpatialConfig::parseConfigSection(const std::string& configContent) {
-    // Buscar sección $spatial { ... }
+    // Find $spatial { ... } section
     size_t spatialPos = configContent.find("$spatial");
     if (spatialPos == std::string::npos) {
-        // Si no existe la sección, usar valores por defecto
-        std::cout << "[SpatialConfig] Sección $spatial no encontrada, usando defaults"
+        // If section doesn't exist, use default values
+        std::cout << "[SpatialConfig] $spatial section not found, using defaults"
                   << std::endl;
         return true;
     }
@@ -66,12 +66,12 @@ bool SpatialConfig::parseConfigSection(const std::string& configContent) {
 
     std::string sectionContent = configContent.substr(openBrace + 1, pos - openBrace - 2);
 
-    // Parser simple: buscar "key = value"
+    // Simple parser: search for "key = value"
     std::istringstream iss(sectionContent);
     std::string line;
 
     while (std::getline(iss, line)) {
-        // Quitar whitespace y comentarios
+        // Remove whitespace and comments
         size_t commentPos = line.find('#');
         if (commentPos != std::string::npos) {
             line = line.substr(0, commentPos);
@@ -91,14 +91,14 @@ bool SpatialConfig::parseConfigSection(const std::string& configContent) {
         value.erase(0, value.find_first_not_of(" \t"));
         value.erase(value.find_last_not_of(" \t\n\r") + 1);
 
-        // Quitar punto y coma al final si existe
+        // Remove semicolon at end if exists
         if (!value.empty() && value.back() == ';') {
             value.pop_back();
         }
 
         m_mValues[key] = value;
 
-        // Parsear valores específicos
+        // Parse specific values
         if (key == "z_layers") {
             m_iZLayerCount = std::stoi(value);
         } else if (key == "z_layer_step") {

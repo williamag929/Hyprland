@@ -7,173 +7,174 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // SPATIAL OS: Z-Space Management
 // ══════════════════════════════════════════════════════════════════════════════
-// Gestiona la posición Z de ventanas, capas de profundidad, y animaciones.
-// Thread-safe mediante mutex interno.
+// Manages Z position of windows, depth layers, and animations.
+// Thread-safe via internal mutex.
 // ══════════════════════════════════════════════════════════════════════════════
 
 namespace Spatial {
 
-// Constantes del sistema Z
+// Z-System Constants
 constexpr int   Z_LAYERS_COUNT      = 4;
-constexpr float Z_LAYER_STEP        = 800.0f;   // unidades entre capas
+constexpr float Z_LAYER_STEP        = 800.0f;   // units between layers
 constexpr float Z_NEAR              = 0.1f;
 constexpr float Z_FAR               = 10000.0f;
 constexpr float Z_FOV_DEGREES       = 60.0f;
-constexpr float Z_ANIM_STIFFNESS    = 200.0f;  // rigidez del spring
-constexpr float Z_ANIM_DAMPING      = 20.0f;   // amortiguación
+constexpr float Z_ANIM_STIFFNESS    = 200.0f;  // spring stiffness
+constexpr float Z_ANIM_DAMPING      = 20.0f;   // damping
 
-// Posición Z por capa
+// Z position per layer
 constexpr float LAYER_Z_POSITIONS[Z_LAYERS_COUNT] = {
-    0.0f,      // Capa 0: Foreground — app activa
-   -800.0f,    // Capa 1: Near — apps recientes
-  -1600.0f,    // Capa 2: Mid — segundo plano
-  -2800.0f,    // Capa 3: Far — sistema / config
+    0.0f,      // Layer 0: Foreground — active app
+   -800.0f,    // Layer 1: Near — recent apps
+  -1600.0f,    // Layer 2: Mid — background
+  -2800.0f,    // Layer 3: Far — system / config
 };
 
-// Visibilidad por distancia de capa
+// Layer opacity by depth distance
 constexpr float LAYER_OPACITY[Z_LAYERS_COUNT] = {
-    1.00f,   // Capa 0: opacidad total
-    0.75f,   // Capa 1: ligero fade
-    0.40f,   // Capa 2: claramente al fondo
-    0.15f,   // Capa 3: casi invisible
+    1.00f,   // Layer 0: full opacity
+    0.75f,   // Layer 1: slight fade
+    0.40f,   // Layer 2: clearly in background
+    0.15f,   // Layer 3: nearly invisible
 };
 
 constexpr float LAYER_BLUR_RADIUS[Z_LAYERS_COUNT] = {
-    0.0f,    // Capa 0: sin blur
-    1.5f,    // Capa 1: blur sutil
-    5.0f,    // Capa 2: blur evidente
-   12.0f,    // Capa 3: blur fuerte
+    0.0f,    // Layer 0: no blur
+    1.5f,    // Layer 1: subtle blur
+    5.0f,    // Layer 2: evident blur
+   12.0f,    // Layer 3: strong blur
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
 /// @class ZSpaceManager
-/// @brief Gestor centralizado de navegación espacial en eje Z
+/// @brief Centralized manager for spatial navigation along Z axis
 ///
-/// Responsabilidades:
-/// - Asignar ventanas a capas Z y coordenadas continuas
-/// - Actualizar posición de cámara según capa activa
-/// - Animar transiciones de posición con spring physics
-/// - Mantener orden de renderizado (depth sorting)
-/// - Validar límites y restricciones de profundidad
+/// Responsibilities:
+/// - Assign windows to Z layers and continuous coordinates
+/// - Update camera position based on active layer
+/// - Animate position transitions with spring physics
+/// - Maintain render order (depth sorting)
+/// - Validate depth limits and constraints
 ///
-/// Thread-safety: Usa mutex interno — métodos son const-thread-safe
+/// Thread-safety: Uses internal mutex — methods are const-thread-safe
 // ──────────────────────────────────────────────────────────────────────────────
 class ZSpaceManager {
 public:
     ZSpaceManager();
     ~ZSpaceManager();
 
-    // ── Inicialización ────────────────────────────────────────────
-    /// @brief Inicializa el gestor Z con parámetros de pantalla
+    // ── Initialization ────────────────────────────────────────────
+    /// @brief Initialize Z manager with screen parameters
     /// @param screenWidth  Ancho de pantalla en píxeles
     /// @param screenHeight Alto de pantalla en píxeles
     void init(int screenWidth, int screenHeight);
 
-    // ── Navegación de capas ───────────────────────────────────────
-    /// @brief Avanza a la siguiente capa (más lejana)
+    // ── Layer Navigation ───────────────────────────────────────
+    /// @brief Advance to next layer (further away)
     /// @return true si cambió de capa, false si ya estaba en la última
     bool nextLayer();
 
-    /// @brief Retrocede a la capa anterior (más cercana)
+    /// @brief Return to previous layer (closer)
     /// @return true si cambió de capa, false si ya estaba en la primera
     bool prevLayer();
 
-    /// @brief Cambia a una capa específica
+    /// @brief Change to specific layer
     /// @param layer Índice de capa (0 a Z_LAYERS_COUNT-1)
     /// @return true si el cambio fue exitoso
     bool setActiveLayer(int layer);
 
-    /// @brief Obtiene la capa activa actual
+    /// @brief Get current active layer
     int getActiveLayer() const;
 
-    // ── Posicionamiento Z ─────────────────────────────────────────
-    /// @brief Obtiene la posición Z de la cámara
+    // ── Z Positioning ─────────────────────────────────────────
+    /// @brief Get Z position of camera
     /// @return Coordenada Z en unidades de mundo
     float getCameraZ() const;
 
-    /// @brief Asigna una ventana a una capa Z específica
-    /// @param window Puntero a ventana CWindow (void* para evitar includes circulares)
-    /// @param layer  Índice de capa (0 a Z_LAYERS_COUNT-1)
+    /// @brief Assign window to Z layer
+    /// @param window Pointer to CWindow (void* to avoid circular includes)
+    /// @param layer  Layer index (0 to Z_LAYERS_COUNT-1)
     void assignWindowToLayer(void* window, int layer);
 
-    /// @brief Obtiene la capa de una ventana
-    /// @param window Puntero a ventana CWindow
-    /// @return Índice de capa, o -1 si no está registrada
+    /// @brief Get layer of window
+    /// @param window Pointer to CWindow
+    /// @return Layer index, or -1 if not registered
     int getWindowLayer(void* window) const;
 
-    /// @brief Obtiene la posición Z de una ventana
-    /// @param window Puntero a ventana CWindow
-    /// @return Coordenada Z en unidades de mundo
+    /// @brief Get Z position of window
+    /// @param window Pointer to CWindow
+    /// @return Z coordinate in world units
     float getWindowZ(void* window) const;
 
-    /// @brief Asigna posición Z continua a una ventana (override de capa)
-    /// @param window Puntero a ventana CWindow
-    /// @param z      Posición Z en unidades de mundo
+    /// @brief Assign continuous Z position to window (layer override)
+    /// @param window Pointer to CWindow
+    /// @param z      Z position in world units
     void setWindowZPosition(void* window, float z);
 
-    // ── Animación ─────────────────────────────────────────────────
-    /// @brief Actualiza animaciones Z (llamar cada frame)
+    // ── Animation ─────────────────────────────────────────────────
+    /// @brief Update Z animations (call each frame)
     /// @param deltaTime Tiempo transcurrido desde el frame anterior (segundos)
     void update(float deltaTime);
 
-    /// @brief Obtiene la posición Z objetivo de una ventana
-    /// @param window Puntero a ventana CWindow
-    /// @return Z objetivo (para debug/visualización)
+    /// @brief Get target Z position of window
+    /// @param window Pointer to CWindow
+    /// @return Target Z (for debug/visualization)
     float getWindowZTarget(void* window) const;
 
-    /// @brief Obtiene la velocidad Z actual de una ventana
-    /// @param window Puntero a ventana CWindow
-    /// @return Velocidad en unidades/segundo
+    /// @brief Get current Z velocity of window
+    /// @param window Pointer to CWindow
+    /// @return Velocity in units/second
     float getWindowZVelocity(void* window) const;
 
-    // ── Matrices de proyección ────────────────────────────────────
-    /// @brief Calcula matriz de proyección perspectiva
+    // ── Projection Matrices ────────────────────────────────────
+    /// @brief Calculate perspective projection matrix
     /// @return Matriz 4x4 de perspectiva OpenGL
     glm::mat4 getSpatialProjection() const;
 
-    /// @brief Calcula matriz de vista (cámara)
+    /// @brief Calculate view matrix (camera)
     /// @return Matriz 4x4 de vista
     glm::mat4 getSpatialView() const;
 
-    /// @brief Obtiene matriz ModelTransform para una ventana
+    /// @brief Get ModelTransform matrix for window
     /// @param window Ventana (CWindow*)
     /// @return Matriz 4x4 que incluye traslación XYZ
     glm::mat4 getWindowTransform(void* window) const;
 
-    // ── Propiedades derivadas ─────────────────────────────────────
-    /// @brief Calcula opacidad normalizada (0-1) para una ventana
+    // ── Derived Properties ─────────────────────────────────────
+    /// @brief Calculate normalized opacity (0-1) for window
     /// @param window Puntero a ventana CWindow
     /// @return Opacidad en [0, 1]
     float getWindowOpacity(void* window) const;
 
-    /// @brief Calcula radio de blur (px) para una ventana
-    /// @param window Puntero a la ventana CWindow
+    /// @brief Calculate blur radius (px) for window
+    /// @param window Pointer to CWindow
     /// @return Radio de blur Gaussiano
     float getWindowBlurRadius(void* window) const;
 
     // ── Debug ─────────────────────────────────────────────────────
-    /// @brief Imprime estado actual (debug)
+    /// @brief Print current state (debug)
     void debugPrint() const;
 
 private:
-    // Estructura interna para ventanas
+    // Internal per-window Z state
     struct WindowZ {
         void*  pWindow      = nullptr;
         float  fZPosition   = 0.0f;
         float  fZTarget     = 0.0f;
         float  fZVelocity   = 0.0f;
         int    iZLayer      = 0;
-        bool   bZPinned     = false;  // no afectada por cámara
+        bool   bZPinned     = false;  // not affected by camera
     };
 
     std::vector<WindowZ> m_vWindowsZ;
-    int                  m_iActiveLayer    = 0;
-    float                m_fCameraZ        = 0.0f;
-    float                m_fCameraZTarget  = 0.0f;
-    int                  m_iScreenW        = 0;
-    int                  m_iScreenH        = 0;
+    int                  m_iActiveLayer     = 0;
+    float                m_fCameraZ         = 0.0f;
+    float                m_fCameraZTarget   = 0.0f;
+    float                m_fCameraZVelocity = 0.0f;  // spring velocity for camera
+    int                  m_iScreenW         = 0;
+    int                  m_iScreenH         = 0;
 
-    // Thread safety (será inicialized en init())
+    // Thread safety (initialized in init())
     void* m_pMutex = nullptr;
 
     WindowZ* findWindow(void* window);

@@ -12,15 +12,15 @@
 namespace Spatial {
 
 /// @class SpatialConfig
-/// @brief Gestor de configuración Spatial OS
+/// @brief Spatial OS configuration manager
 ///
-/// Lee la sección $spatial del archivo hyprland.conf y extrae parámetros de:
-/// - Número de capas Z
-/// - Distancia entre capas
-/// - Parámetros de animación (stiffness, damping)
-/// - Ajustes de perspectiva (FOV, near/far planes)
+/// Reads $spatial section from hyprland.conf and extracts parameters for:
+/// - Number of Z layers
+/// - Distance between layers
+/// - Animation parameters (stiffness, damping)
+/// - Perspective settings (FOV, near/far planes)
 ///
-/// Ejemplo de uso en hyprland.conf:
+/// Example usage in hyprland.conf:
 /// ```
 /// $spatial {
 ///     z_layers = 4
@@ -37,37 +37,37 @@ public:
 
     // ── Carga y parsing ───────────────────────────────────────────
     /// @brief Carga la configuración desde archivo
-    /// @param configPath Ruta al archivo hyprland.conf
-    /// @return true si se cargó correctamente, false en error
+    /// @param configPath Path to hyprland.conf file
+    /// @return true if loaded successfully, false on error
     bool loadFromFile(const std::string& configPath);
 
-    /// @brief Recarga la configuración (hot-reload on file change)
+    /// @brief Reload configuration (hot-reload on file change)
     bool reload();
 
     // ── Acceso a parámetros ──────────────────────────────────────
     /// @brief Obtiene el número de capas Z
     int getZLayerCount() const;
 
-    /// @brief Obtiene la distancia entre capas (unidades)
+    /// @brief Get distance between layers (units)
     float getZLayerStep() const;
 
-    /// @brief Obtiene rigidez de animación spring
+    /// @brief Get animation spring stiffness
     float getZAnimationStiffness() const;
 
-    /// @brief Obtiene amortiguación de animación spring
+    /// @brief Get animation spring damping
     float getZAnimationDamping() const;
 
-    /// @brief Obtiene FOV en grados
+    /// @brief Get FOV in degrees
     float getZFOVDegrees() const;
 
-    /// @brief Obtiene distancia near plane
+    /// @brief Get near plane distance
     float getZNearPlane() const;
 
-    /// @brief Obtiene distancia far plane
+    /// @brief Get far plane distance
     float getZFarPlane() const;
 
     // ── Debug ─────────────────────────────────────────────────────
-    /// @brief Imprime configuración actual (debug)
+    /// @brief Print current configuration (debug)
     void debugPrint() const;
 
 private:

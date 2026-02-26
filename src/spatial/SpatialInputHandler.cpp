@@ -21,15 +21,15 @@ void SpatialInputHandler::setCameraZChangeCallback(CameraZChangeCallback cb) {
 }
 
 void SpatialInputHandler::processScrollEvent(float scrollY, bool hasModifier) {
-    // Si hay modificador, ignorar (el scroll normal lo maneja Hyprland)
+    // If modifier is pressed, ignore (normal scroll is handled by Hyprland)
     if (hasModifier) {
         return;
     }
 
-    // Acumular scroll discreto hasta alcanzar un "paso" de capa
+    // Accumulate discrete scroll until reaching a "step" of layer change
     m_iScrollAccumulator += (int)(scrollY * 120.0f * m_fScrollSensitivity);
 
-    const int SCROLL_PER_LAYER = 120;  // líneas de scroll por cambio de capa
+    const int SCROLL_PER_LAYER = 120;  // scroll lines per layer change
 
     while (m_iScrollAccumulator >= SCROLL_PER_LAYER) {
         processNextLayerKeybind();
@@ -43,16 +43,16 @@ void SpatialInputHandler::processScrollEvent(float scrollY, bool hasModifier) {
 }
 
 void SpatialInputHandler::processNextLayerKeybind() {
-    // Callback será manejado por el compositor (llamará a ZSpaceManager::nextLayer())
+    // Callback will be handled by compositor (will call ZSpaceManager::nextLayer())
     if (m_fnLayerChangeCallback) {
-        // El compositor pasará las capas actual y nueva
-        // Por ahora solo notificamos
+        // Compositor will pass current and new layers
+        // For now we only notify
         std::cout << "[SpatialInputHandler] Next layer triggered" << std::endl;
     }
 }
 
 void SpatialInputHandler::processPrevLayerKeybind() {
-    // Callback será manejado por el compositor (llamará a ZSpaceManager::prevLayer())
+    // Callback will be handled by compositor (will call ZSpaceManager::prevLayer())
     if (m_fnLayerChangeCallback) {
         std::cout << "[SpatialInputHandler] Previous layer triggered" << std::endl;
     }
