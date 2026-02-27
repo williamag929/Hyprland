@@ -109,9 +109,13 @@ add_compile_options(
   -Wno-gnu-zero-variadic-macro-arguments
   -Wno-narrowing
   -Wno-pointer-arith
-  -Wno-clobbered
   -frtti
   -fmacro-prefix-map=${CMAKE_SOURCE_DIR}/=)
+
+# -Wno-clobbered is GCC-specific; clang does not recognize it
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  add_compile_options(-Wno-clobbered)
+endif()
 
 # disable lto as it may break plugins
 add_compile_options(-fno-lto)
