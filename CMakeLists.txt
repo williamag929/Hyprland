@@ -131,7 +131,14 @@ set(GLES_VERSION "GLES3")
 find_package(OpenGL REQUIRED COMPONENTS ${GLES_VERSION})
 
 # glm — header-only math library used by the spatial Z-layer subsystem
-find_package(glm REQUIRED)
+# Try cmake config first; fall back to pkg-config for distros that don't ship glmConfig.cmake
+find_package(glm QUIET)
+if(NOT glm_FOUND)
+  pkg_check_modules(glm_dep REQUIRED IMPORTED_TARGET glm)
+  message(STATUS "glm found via pkg-config")
+else()
+  message(STATUS "glm found via cmake config")
+endif()
 
 set(AQUAMARINE_MINIMUM_VERSION 0.9.3)
 set(HYPRLANG_MINIMUM_VERSION 0.6.7)
@@ -426,8 +433,12 @@ target_link_libraries(
   PkgConfig::hyprcursor_dep
   PkgConfig::hyprgraphics_dep
   PkgConfig::deps
-  glm::glm
 )
+if(glm_FOUND)
+  target_link_libraries(hyprland_lib PUBLIC glm::glm)
+else()
+  target_link_libraries(hyprland_lib PUBLIC PkgConfig::glm_dep)
+endif()
 
 target_link_libraries(
   Hyprland
