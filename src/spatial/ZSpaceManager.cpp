@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <pthread.h>
 #include "../desktop/view/Window.hpp"
 
 // Bring CWindow into scope so it can be used inside namespace Spatial
@@ -17,26 +16,16 @@ namespace Spatial {
 
 ZSpaceManager::ZSpaceManager()
     : m_iActiveLayer(0), m_fCameraZ(0.0f), m_fCameraZTarget(0.0f),
-      m_fCameraZVelocity(0.0f), m_iScreenW(0), m_iScreenH(0), m_pMutex(nullptr) {
+      m_fCameraZVelocity(0.0f), m_iScreenW(0), m_iScreenH(0) {
 }
 
 ZSpaceManager::~ZSpaceManager() {
-    if (m_pMutex) {
-        pthread_mutex_destroy((pthread_mutex_t*)m_pMutex);
-        delete (pthread_mutex_t*)m_pMutex;
-    }
+    // std::mutex is automatically destroyed
 }
 
 void ZSpaceManager::init(int screenWidth, int screenHeight) {
     m_iScreenW = screenWidth;
     m_iScreenH = screenHeight;
-
-    // Initialize mutex
-    if (!m_pMutex) {
-        pthread_mutex_t* mutex = new pthread_mutex_t;
-        pthread_mutex_init(mutex, nullptr);
-        m_pMutex = (void*)mutex;
-    }
 
     // Camera begins at layer 0
     m_fCameraZ = LAYER_Z_POSITIONS[0];
@@ -80,7 +69,7 @@ void ZSpaceManager::assignWindowToLayer(void* window, int layer) {
         return;
     }
 
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     WindowZ* wz = findWindow(window);
     if (!wz) {
@@ -99,53 +88,41 @@ void ZSpaceManager::assignWindowToLayer(void* window, int layer) {
     pWindow->m_sSpatialProps.iZLayer = layer;
     pWindow->m_sSpatialProps.fZPosition = LAYER_Z_POSITIONS[layer];
     pWindow->m_sSpatialProps.fZTarget = LAYER_Z_POSITIONS[layer];
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
 int ZSpaceManager::getWindowLayer(void* window) const {
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     const WindowZ* wz = findWindow(window);
-    int layer = (wz ? wz->iZLayer : -1);
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
-    return layer;
+    return (wz ? wz->iZLayer : -1);
 }
 
 void ZSpaceManager::removeWindow(void* window) {
     if (!window)
         return;
 
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     auto it = std::find_if(m_vWindowsZ.begin(), m_vWindowsZ.end(),
                            [window](const WindowZ& wz) { return wz.pWindow == window; });
     if (it != m_vWindowsZ.end())
         m_vWindowsZ.erase(it);
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
 float ZSpaceManager::getWindowZ(void* window) const {
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     const WindowZ* wz = findWindow(window);
-    float z = (wz ? wz->fZPosition : 0.0f);
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
-    return z;
+    return (wz ? wz->fZPosition : 0.0f);
 }
 
 void ZSpaceManager::setWindowZPosition(void* window, float z) {
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     WindowZ* wz = findWindow(window);
     if (wz) {
         wz->fZTarget = z;
     }
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
 void ZSpaceManager::update(float deltaTime) {
@@ -153,7 +130,7 @@ void ZSpaceManager::update(float deltaTime) {
     // or first frame. With stiffness=200 and Euler integration, dt > ~0.1s diverges.
     deltaTime = std::clamp(deltaTime, 0.0f, 0.05f);
 
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     // Update camera Z with proper spring physics
     {
@@ -190,28 +167,20 @@ void ZSpaceManager::update(float deltaTime) {
             pWindow->m_sSpatialProps.fDepthNorm = (wz.fZPosition - LAYER_Z_POSITIONS[Z_LAYERS_COUNT - 1]) / zRange;
         }
     }
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
 }
 
 float ZSpaceManager::getWindowZTarget(void* window) const {
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     const WindowZ* wz = findWindow(window);
-    float target = (wz ? wz->fZTarget : 0.0f);
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
-    return target;
+    return (wz ? wz->fZTarget : 0.0f);
 }
 
 float ZSpaceManager::getWindowZVelocity(void* window) const {
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     const WindowZ* wz = findWindow(window);
-    float vel = (wz ? wz->fZVelocity : 0.0f);
-
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
-    return vel;
+    return (wz ? wz->fZVelocity : 0.0f);
 }
 
 glm::mat4 ZSpaceManager::getSpatialProjection() const {
@@ -229,7 +198,7 @@ glm::mat4 ZSpaceManager::getSpatialView() const {
 }
 
 glm::mat4 ZSpaceManager::getWindowTransform(void* window) const {
-    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+    std::lock_guard<std::mutex> lock(m_oMutex);
 
     const WindowZ* wz = findWindow(window);
     glm::mat4 model = glm::mat4(1.0f);
@@ -240,7 +209,6 @@ glm::mat4 ZSpaceManager::getWindowTransform(void* window) const {
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, wz->fZPosition));
     }
 
-    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
     return model;
 }
 

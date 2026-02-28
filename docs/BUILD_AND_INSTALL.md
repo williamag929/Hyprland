@@ -51,17 +51,27 @@ sudo usermod -aG seat $USER
 ```bash
 git clone https://github.com/hyprwm/Hyprland.git -b Space-Z spatial-hypr
 cd spatial-hypr
+
+
+git submodule update --init --recursive
+
 ```
 
 ---
 
 ## 3. Build
 
+sudo pacman -S cmake
+sudo pacman -S base-devel
 ```bash
+# Ensure clang is installed first
+sudo pacman -S clang
+
 cmake -B build \
     -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_CXX_COMPILER=clang++ \
-    -DCMAKE_C_COMPILER=clang
+    -DCMAKE_CXX_COMPILER=$(which clang++) \
+    -DCMAKE_C_COMPILER=$(which clang) \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 cmake --build build -j$(nproc)
 ```
@@ -267,6 +277,23 @@ GBM_BACKEND=nvidia-drm \
 __GLX_VENDOR_LIBRARY_NAME=nvidia \
 WLR_NO_HARDWARE_CURSORS=1 \
 ./build/Hyprland --config ~/.config/hypr/hyprland.conf
+```
+
+### `clang is not a full path and was not found`
+CMake cannot locate clang in your `PATH`. Fix:
+```bash
+# Install clang
+sudo pacman -S clang        # Arch
+# sudo dnf install clang    # Fedora
+
+# Verify it is on PATH
+which clang clang++
+
+# Re-run cmake using the full path
+cmake -B build \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_CXX_COMPILER=$(which clang++) \
+    -DCMAKE_C_COMPILER=$(which clang)
 ```
 
 ### Check crash report

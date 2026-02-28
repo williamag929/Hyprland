@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <mutex>
 #include <glm/glm.hpp>
 #include <memory>
 
@@ -179,8 +180,8 @@ private:
     int                  m_iScreenW         = 0;
     int                  m_iScreenH         = 0;
 
-    // Thread safety (initialized in init())
-    void* m_pMutex = nullptr;
+    // Thread safety
+    mutable std::mutex m_oMutex;
 
     WindowZ* findWindow(void* window);
     const WindowZ* findWindow(void* window) const;
