@@ -59,7 +59,14 @@ public:
     /// @return Layer index in [0, Z_LAYERS_COUNT-1]
     [[nodiscard]] int getCurrentLayer() const;
 
-    // ── Configuration ────────────────────────────────────────────────────────
+    // ── Configuration ────────────────────────────────────────────────────────    /// @brief Enable or disable spatial Z-layer navigation entirely
+    /// @param enabled  true = spatial active (default); false = all Z inputs pass through
+    /// @note  Can be toggled at runtime for hot-reload support
+    void setEnabled(bool enabled);
+
+    /// @brief Get whether spatial navigation is currently active
+    /// @return true if enabled
+    [[nodiscard]] bool isEnabled() const;
     /// @brief Set scroll sensitivity for Z navigation
     /// @param sensitivity Scale factor (default ~1.0)
     void setScrollSensitivity(float sensitivity);
@@ -85,6 +92,7 @@ private:
     float m_fScrollAccumulator  = 0.0f;    ///< Fractional accumulator — float to avoid truncation
     int   m_iScrollThreshold    = 120;     ///< Scroll units required to trigger one layer step
     int   m_iCurrentLayer       = 0;       ///< Mirror of ZSpaceManager's active layer index
+    bool  m_bEnabled            = true;    ///< When false, all Z navigation inputs are silently ignored
 
     LayerChangeCallback   m_fnLayerChangeCallback;    ///< Fired on every discrete layer change
     CameraZChangeCallback m_fnCameraZChangeCallback;  ///< Fired on continuous camera Z change

@@ -78,6 +78,10 @@ public:
     /// @return Far plane > near
     [[nodiscard]] float getZFarPlane() const;
 
+    /// @brief Get whether the spatial Z-layer system is enabled
+    /// @return true if spatial navigation is active (default), false if disabled via config
+    [[nodiscard]] bool isEnabled() const;
+
     // ── Debug ─────────────────────────────────────────────────────
     /// @brief Print current configuration (debug)
     void debugPrint() const;
@@ -92,6 +96,7 @@ private:
     float m_fZNearPlane            = 0.1f;     ///< Perspective near plane (> 0, < far)
     float m_fZFarPlane             = 10000.0f; ///< Perspective far plane (> near)
 
+    bool        m_bEnabled     = true;  ///< false when config sets "enabled = false" in $spatial block
     bool        m_bLoaded      = false; ///< Set true after the first successful loadFromFile()
     std::string m_sConfigPath;          ///< Path passed to the last loadFromFile() call
     std::map<std::string, std::string> m_mValues; ///< Raw key→value pairs from the $spatial block

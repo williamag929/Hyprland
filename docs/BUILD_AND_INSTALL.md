@@ -80,6 +80,25 @@ Build artifacts:
 - `build/Hyprland` — main compositor binary
 - `build/hyprctl/hyprctl` — IPC control tool
 
+### run
+
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export WAYLAND_DISPLAY=wayland-0   # GNOME's socket — usually wayland-0 or wayland-1
+export WLR_BACKENDS=wayland
+export WLR_NO_HARDWARE_CURSORS=1
+
+mkdir -p ~/.config/hypr
+cp example/hyprland.conf ~/.config/hypr/hyprland.conf
+echo "monitor=,1920x1080@60,0x0,1" >> ~/.config/hypr/hyprland.conf
+
+./build/Hyprland --config ~/.config/hypr/hyprland.conf
+
+./build/Hyprland --config ~/.config/hypr/hyprland.conf
+
+Hyprland opens as a window inside your GNOME session. If wayland-0 doesn't work, check the correct socket:
+
+echo $WAYLAND_DISPLAY
+
 ### Build Notes
 - Build takes 5–15 minutes depending on hardware
 - Subprojects (aquamarine, hyprlang, etc.) are fetched automatically via CMake FetchContent if not found system-wide

@@ -122,6 +122,9 @@ bool SpatialConfig::parseConfigSection(const std::string& configContent) {
                 m_fZNearPlane = std::stof(value);
             } else if (key == "z_far_plane") {
                 m_fZFarPlane = std::stof(value);
+            } else if (key == "enabled") {
+                // Accept "true"/"1" as enabled, anything else as disabled
+                m_bEnabled = (value == "true" || value == "1");
             }
         } catch (const std::invalid_argument& e) {
             std::cerr << "[SpatialConfig] Invalid value for '" << key
@@ -216,8 +219,13 @@ float SpatialConfig::getZFarPlane() const {
     return m_fZFarPlane;
 }
 
+bool SpatialConfig::isEnabled() const {
+    return m_bEnabled;
+}
+
 void SpatialConfig::debugPrint() const {
     std::cout << "[SpatialConfig] loaded=" << (m_bLoaded ? "yes" : "no") << "\n"
+              << "  enabled:               " << (m_bEnabled ? "true" : "false") << "\n"
               << "  z_layers:              " << m_iZLayerCount << "\n"
               << "  z_layer_step:          " << m_fZLayerStep << "\n"
               << "  z_animation_stiffness: " << m_fZAnimationStiffness << "\n"

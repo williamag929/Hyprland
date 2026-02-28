@@ -23,6 +23,10 @@ void SpatialInputHandler::setCameraZChangeCallback(CameraZChangeCallback cb) {
 }
 
 void SpatialInputHandler::processScrollEvent(float scrollY, bool hasModifier) {
+    // Spatial disabled — let the event pass through unchanged
+    if (!m_bEnabled)
+        return;
+
     // If modifier is pressed, pass through to Hyprland's normal scroll handler
     if (hasModifier)
         return;
@@ -42,6 +46,9 @@ void SpatialInputHandler::processScrollEvent(float scrollY, bool hasModifier) {
 }
 
 void SpatialInputHandler::processNextLayerKeybind() {
+    if (!m_bEnabled)
+        return;
+
     if (m_iCurrentLayer >= Z_LAYERS_COUNT - 1)
         return;  // already at deepest layer — no-op, no spurious callback
 
@@ -53,6 +60,9 @@ void SpatialInputHandler::processNextLayerKeybind() {
 }
 
 void SpatialInputHandler::processPrevLayerKeybind() {
+    if (!m_bEnabled)
+        return;
+
     if (m_iCurrentLayer <= 0)
         return;  // already at front layer — no-op
 
@@ -86,6 +96,14 @@ void SpatialInputHandler::setScrollThreshold(int threshold) {
 
 int SpatialInputHandler::getScrollThreshold() const {
     return m_iScrollThreshold;
+}
+
+void SpatialInputHandler::setEnabled(bool enabled) {
+    m_bEnabled = enabled;
+}
+
+bool SpatialInputHandler::isEnabled() const {
+    return m_bEnabled;
 }
 
 void SpatialInputHandler::debugPrint() const {

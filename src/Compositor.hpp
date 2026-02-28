@@ -12,6 +12,7 @@
 #include "protocols/types/ColorManagement.hpp"
 #include "spatial/ZSpaceManager.hpp"
 #include "spatial/SpatialInputHandler.hpp"
+#include "spatial/SpatialConfig.hpp"
 
 #include <aquamarine/backend/Backend.hpp>
 #include <aquamarine/output/Output.hpp>

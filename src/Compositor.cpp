@@ -659,6 +659,20 @@ void CCompositor::initManagers(eManagersInitStage stage) {
                 g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
             });
 
+            // [SPATIAL] Propagate enabled flag from $spatial { enabled = ... } in hyprland.conf.
+            // Default is true; set "enabled = false" to disable all Z-navigation at config load.
+            {
+                const char*        xdgCfg  = std::getenv("XDG_CONFIG_HOME");
+                const char*        home    = std::getenv("HOME");
+                const std::string  cfgDir  = xdgCfg ? std::string(xdgCfg) : (home ? std::string(home) + "/.config" : "");
+                Spatial::SpatialConfig spatialBootCfg;
+                if (!cfgDir.empty() && spatialBootCfg.loadFromFile(cfgDir + "/hypr/hyprland.conf")) {
+                    g_pSpatialInputHandler->setEnabled(spatialBootCfg.isEnabled());
+                    if (!spatialBootCfg.isEnabled())
+                        Log::logger->log(Log::DEBUG, "[SPATIAL] Spatial navigation DISABLED via config (enabled = false)");
+                }
+            }
+
             g_pConfigManager->init();
 
             Log::logger->log(Log::DEBUG, "Creating the PointerManager!");
