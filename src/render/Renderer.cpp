@@ -2780,50 +2780,7 @@ bool CHyprRenderer::shouldBlur(WP<Desktop::View::CPopup> p) {
 
     return *PBLURPOPUPS && *PBLUR;
 }
-// [SPATIAL] Select appropriate spatial shader based on window Z position
-WP<CShader> CHyprRenderer::selectSpatialShader(PHLWINDOW pWindow) {
-    if (!g_pZSpaceManager || !pWindow)
-        return WP<CShader>();
-
-    // For now, use depth_spatial shader for all Z-managed windows
-    // Future: Use depth_dof for far background windows
-    const int layer = pWindow->m_sSpatialProps.iZLayer;
-    
-    if (layer == 3) {
-        // Far layer uses depth-of-field for stronger effect
-        return g_pHyprOpenGL->m_shaders->frag[SH_FRAG_SPATIAL_DOF];
-    }
-
-    return g_pHyprOpenGL->m_shaders->frag[SH_FRAG_SPATIAL_DEPTH];
-}
-
-// [SPATIAL] Apply Z-space shader uniforms for depth rendering
-void CHyprRenderer::applySpatialShaderUniforms(PHLWINDOW pWindow) {
-    if (!g_pZSpaceManager || !pWindow || !g_pHyprOpenGL->m_shaders)
-        return;
-
-    // Get currently bound shader
-    WP<CShader> pShader = selectSpatialShader(pWindow);
-    if (!pShader.lock())
-        return;
-
-    auto shader = pShader.lock();
-
-    // Set perspective projection matrix
-    shader->setUniformMatrix4fv(SHADER_SPATIAL_PROJ, 1, GL_FALSE, g_pHyprOpenGL->m_renderData.spatialProjection);
-
-    // Set camera view matrix
-    shader->setUniformMatrix4fv(SHADER_SPATIAL_VIEW, 1, GL_FALSE, g_pHyprOpenGL->m_renderData.spatialView);
-
-    // Set normalized Z depth (0 = far, 1 = near)
-    const float zNorm = (pWindow->m_sSpatialProps.fZPosition - (-2800.0f)) / 2800.0f;  // normalize to [0, 1]
-    shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
-
-    // Set blur radius based on layer
-    shader->setUniformFloat(SHADER_BLUR_RADIUS, pWindow->m_sSpatialProps.fDepthNorm > 0.0f ? 
-        g_pZSpaceManager->getWindowBlurRadius(pWindow.get()) : 0.0f);
-
-    Log::logger->log(Log::DEBUG, "[SPATIAL] Applied shader uniforms: Z={}, blur={}", 
-                    pWindow->m_sSpatialProps.fZPosition, 
-                    pWindow->m_sSpatialProps.fDepthNorm);
-}
+// [SPATIAL] Shader selection and uniform upload are handled in CHyprOpenGLImpl::renderTextureInternal()
+// inside OpenGL.cpp. The functions selectSpatialShader() and applySpatialShaderUniforms() that
+// previously lived here have been removed — they incorrectly uploaded uniforms without first
+// calling useShader() to bind the program. See docs/TASK_SH_001_RENDERER_UNIFORM_PATH.md.

@@ -24,7 +24,7 @@ layout(location = 1) in vec4 v_color;
 uniform sampler2D tex;
 uniform float u_zDepth;           // Profundidad normalizada [0, 1]
 uniform float u_focusDistance;    // Distancia de enfoque (centro de atención)
-uniform float u_blurMaxRadius;    // Radio máximo de blur [1, 20]
+uniform float u_blurRadius;        // Radio máximo de blur [1, 20] — matches SHADER_BLUR_RADIUS
 uniform vec2 fullSize;            // Resolución de pantalla (Hyprland standard)
 
 out vec4 fragColor;
@@ -73,7 +73,7 @@ float calculateCoC(float zDepth) {
     // CoC crece exponencialmente con la distancia al plano de enfoque
     // Near: desenfoque suave
     // Far: desenfoque pronunciado
-    return u_blurMaxRadius * zDepth;
+    return u_blurRadius * zDepth;
 }
 
 void main() {

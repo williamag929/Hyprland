@@ -167,8 +167,7 @@ class CHyprRenderer {
     SP<CEventLoopTimer>            m_renderUnfocusedTimer;
 
     // [SPATIAL] Spatial rendering helpers
-    void applySpatialShaderUniforms(PHLWINDOW pWindow);
-    WP<CShader> selectSpatialShader(PHLWINDOW pWindow);
+    // [SPATIAL] Shader selection and uniform upload moved to OpenGL.cpp renderTextureInternal()
 
     friend class CHyprOpenGLImpl;
     friend class CToplevelExportFrame;

@@ -208,7 +208,7 @@ void CShader::getUniformLocations() {
     m_uniformLocations[SHADER_POINTER_SIZE]              = getUniform("pointer_size");
     
     // [SPATIAL] Z-space rendering uniforms
-    m_uniformLocations[SHADER_SPATIAL_PROJ]  = getUniform("u_spatialProjection");
+    m_uniformLocations[SHADER_SPATIAL_PROJ]  = getUniform("u_spatialProj");
     m_uniformLocations[SHADER_SPATIAL_VIEW]  = getUniform("u_spatialView");
     m_uniformLocations[SHADER_Z_DEPTH]       = getUniform("u_zDepth");
     m_uniformLocations[SHADER_BLUR_RADIUS]   = getUniform("u_blurRadius");

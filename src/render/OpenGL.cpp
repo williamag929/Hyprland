@@ -1462,17 +1462,28 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
         
         if (spatialShader && spatialShader->program() > 0) {
             shader = useShader(spatialShader);
-            
-            // Apply spatial-specific uniforms for depth rendering
-            // Normalize Z depth to [0, 1] scale (0 = far, 1 = near)
+
+            // [SPATIAL] Perspective matrices — uploaded now while the spatial program is bound.
+            // glGetUniformLocation returns -1 for these at P0 (shaders are fragment-only),
+            // so setUniform* silently skips them — safe and future-proof for P1 vertex stage.
+            shader->setUniformMatrix4fv(SHADER_SPATIAL_PROJ, 1, GL_FALSE, m_renderData.spatialProjection);
+            shader->setUniformMatrix4fv(SHADER_SPATIAL_VIEW, 1, GL_FALSE, m_renderData.spatialView);
+
+            // [SPATIAL] Per-window depth scalars consumed by the fragment shader
             const float zNorm = (m_renderData.currentWindow->m_sSpatialProps.fZPosition - (-2800.0f)) / 2800.0f;
             shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
-            
-            // Get blur radius from ZSpaceManager based on layer
+
             const float blurRadius = g_pZSpaceManager->getWindowBlurRadius(
-                reinterpret_cast<void*>(m_renderData.currentWindow.lock().get())
+                static_cast<void*>(m_renderData.currentWindow.lock().get())
             );
             shader->setUniformFloat(SHADER_BLUR_RADIUS, blurRadius);
+
+            // [SPATIAL] The blur texel computation in depth_spatial.frag / depth_dof.frag uses
+            // `fullSize` as the render-target (monitor pixel) size, not the window box size.
+            // Override here before the downstream rounded-corners block writes window-box dims.
+            shader->setUniformFloat2(SHADER_FULL_SIZE,
+                m_renderData.pMonitor->m_pixelSize.x,
+                m_renderData.pMonitor->m_pixelSize.y);
         }
     }
 
