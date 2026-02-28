@@ -521,6 +521,18 @@ CConfigManager::CConfigManager() {
     registerConfigVar("misc:disable_scale_notification", Hyprlang::INT{0});
     registerConfigVar("misc:size_limits_tiled", Hyprlang::INT{0});
 
+    // [SPATIAL] Register spatial Z-layer config variables so hyprlang accepts them.
+    // Values are parsed independently by SpatialConfig::loadFromFile() — these
+    // registrations exist only to silence hyprlang's unknown-option errors.
+    registerConfigVar("spatial:enabled",               Hyprlang::INT{1});
+    registerConfigVar("spatial:z_layers",              Hyprlang::INT{4});
+    registerConfigVar("spatial:z_layer_step",          Hyprlang::FLOAT{800.0f});
+    registerConfigVar("spatial:z_animation_stiffness", Hyprlang::FLOAT{200.0f});
+    registerConfigVar("spatial:z_animation_damping",   Hyprlang::FLOAT{20.0f});
+    registerConfigVar("spatial:z_fov_degrees",         Hyprlang::FLOAT{60.0f});
+    registerConfigVar("spatial:z_near_plane",          Hyprlang::FLOAT{0.1f});
+    registerConfigVar("spatial:z_far_plane",           Hyprlang::FLOAT{10000.0f});
+
     registerConfigVar("group:insert_after_current", Hyprlang::INT{1});
     registerConfigVar("group:focus_removed_window", Hyprlang::INT{1});
     registerConfigVar("group:merge_groups_on_drag", Hyprlang::INT{1});

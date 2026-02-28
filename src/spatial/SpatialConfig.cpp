@@ -48,18 +48,35 @@ bool SpatialConfig::isLoaded() const {
 }
 
 bool SpatialConfig::parseConfigSection(const std::string& configContent) {
-    // Find $spatial { ... } section
-    size_t spatialPos = configContent.find("$spatial");
+    // Find spatial { ... } section (note: no $ prefix — plain hyprlang section name).
+    // Search for "spatial {" with optional whitespace so we skip comment lines that
+    // mention the word "spatial" without opening a block.
+    size_t spatialPos = std::string::npos;
+    {
+        size_t searchFrom = 0;
+        while (searchFrom < configContent.size()) {
+            size_t candidate = configContent.find("spatial", searchFrom);
+            if (candidate == std::string::npos)
+                break;
+            // Accept only if preceded by newline or start-of-file (i.e. starts a line)
+            bool atLineStart = (candidate == 0) || (configContent[candidate - 1] == '\n');
+            if (atLineStart) {
+                spatialPos = candidate;
+                break;
+            }
+            searchFrom = candidate + 1;
+        }
+    }
     if (spatialPos == std::string::npos) {
         // Missing section is not an error — safe defaults are already set
-        std::cerr << "[SpatialConfig] $spatial section not found, using defaults\n";
+        std::cerr << "[SpatialConfig] spatial section not found, using defaults\n";
         validateAndClamp();
         return true;
     }
 
     size_t openBrace = configContent.find('{', spatialPos);
     if (openBrace == std::string::npos) {
-        std::cerr << "[SpatialConfig] $spatial section found but has no opening '{'\n";
+        std::cerr << "[SpatialConfig] spatial section found but has no opening '{'\n";
         return false;
     }
 
