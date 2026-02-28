@@ -883,17 +883,25 @@ void CInputManager::onMouseWheel(IPointer::SAxisEvent e, SP<IPointer> pointer) {
 
     bool passEvent = g_pKeybindManager->onAxisEvent(e);
 
-    // [SPATIAL] Handle scroll for Z-space navigation (layer switching)
-    if (passEvent && e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && g_pZSpaceManager) {
-        // Normalize scroll value: positive = scrolling up (move to next/front layer), 
-        // negative = scrolling down (move to prev/back layer)
-        if (e.delta > 0) {
-            g_pZSpaceManager->nextLayer();
-        } else if (e.delta < 0) {
-            g_pZSpaceManager->prevLayer();
-        }
-        // After consuming scroll for Z-navigation, prevent further processing
-        passEvent = false;
+    // [SPATIAL] Handle scroll for Z-space navigation via SpatialInputHandler.
+    //
+    // Rules (from SPATIAL_HYPR_FORK_SPEC.md):
+    //   - Any modifier held → pass scroll through to the focused surface unchanged.
+    //   - No modifier + vertical scroll → route through SpatialInputHandler accumulator.
+    //   - passEvent is consumed (set false) only when a discrete layer step actually fired.
+    //     Scroll at a boundary layer (already top/bottom) still passes through to the surface.
+    if (passEvent && e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && g_pSpatialInputHandler) {
+        const bool   hasMod      = (getModsFromAllKBs() != 0);
+        const int    layerBefore = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
+
+        g_pSpatialInputHandler->processScrollEvent(static_cast<float>(e.delta), hasMod);
+
+        const int    layerAfter  = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
+
+        // Consume the scroll event only when it produced an actual layer transition
+        // and no modifier was held (modifier passes through unconditionally above)
+        if (!hasMod && layerBefore != layerAfter)
+            passEvent = false;
     }
 
     if (!passEvent)

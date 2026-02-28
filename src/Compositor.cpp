@@ -644,6 +644,21 @@ void CCompositor::initManagers(eManagersInitStage stage) {
             Log::logger->log(Log::DEBUG, "Creating the ZSpaceManager!");
             g_pZSpaceManager = makeUnique<Spatial::ZSpaceManager>();
 
+            // [SPATIAL] Initialize SpatialInputHandler and wire the layer-change callback.
+            // The callback is the only place that calls ZSpaceManager — InputManager.cpp
+            // routes all scroll/keybind events through SpatialInputHandler.
+            Log::logger->log(Log::DEBUG, "Creating the SpatialInputHandler!");
+            g_pSpatialInputHandler = makeUnique<Spatial::SpatialInputHandler>();
+            g_pSpatialInputHandler->setLayerChangeCallback([](int newLayer, int /*oldLayer*/) {
+                if (!g_pZSpaceManager || !g_pSpatialInputHandler)
+                    return;
+                // Apply the new layer — ZSpaceManager validates range and sets spring target
+                g_pZSpaceManager->setActiveLayer(newLayer);
+                // Read the actual resulting layer back (manager may clamp at boundaries)
+                // and keep handler's internal counter in sync
+                g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
+            });
+
             g_pConfigManager->init();
 
             Log::logger->log(Log::DEBUG, "Creating the PointerManager!");

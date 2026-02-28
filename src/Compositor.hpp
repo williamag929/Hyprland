@@ -11,6 +11,7 @@
 #include "desktop/view/Window.hpp"
 #include "protocols/types/ColorManagement.hpp"
 #include "spatial/ZSpaceManager.hpp"
+#include "spatial/SpatialInputHandler.hpp"
 
 #include <aquamarine/backend/Backend.hpp>
 #include <aquamarine/output/Output.hpp>
@@ -192,5 +193,6 @@ class CCompositor {
     std::vector<PHLWORKSPACEREF>   m_workspaces;
 };
 
-inline UP<CCompositor> g_pCompositor;
-inline UP<Spatial::ZSpaceManager> g_pZSpaceManager;
+inline UP<CCompositor>                  g_pCompositor;
+inline UP<Spatial::ZSpaceManager>       g_pZSpaceManager;
+inline UP<Spatial::SpatialInputHandler> g_pSpatialInputHandler;
