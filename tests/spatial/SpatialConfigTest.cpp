@@ -250,8 +250,9 @@ TEST(SpatialConfig, EmptyValueKeepsDefault) {
 }
 
 TEST(SpatialConfig, OutOfRangeFloatStringKeepsDefault) {
-    // Value larger than FLT_MAX triggers std::out_of_range in stof
-    TempConfigFile tmp("spatial {\n    z_layer_step = 9999999999999999999999999.0\n}\n");
+    // 3.5e38 > FLT_MAX (~3.4e38) — stof either throws std::out_of_range or returns HUGE_VALF;
+    // validateAndClamp() catches both via !std::isfinite() and resets to default 800.
+    TempConfigFile tmp("spatial {\n    z_layer_step = 3.5e38\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;

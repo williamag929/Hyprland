@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <iostream>
+#include <cmath>
 
 namespace Spatial {
 
@@ -164,45 +165,47 @@ void SpatialConfig::validateAndClamp() {
         m_iZLayerCount = std::clamp(m_iZLayerCount, 1, 16);
     }
 
-    // z_layer_step: must be > 0 — zero collapses all layers to the same Z
-    if (m_fZLayerStep <= 0.0f) {
+    // z_layer_step: must be > 0, finite, and within a sane range.
+    // Upper bound 100000 guards against stof returning HUGE_VALF on overflow platforms
+    // that don't throw std::out_of_range (implementation-defined per C++ standard).
+    if (!std::isfinite(m_fZLayerStep) || m_fZLayerStep <= 0.0f || m_fZLayerStep > 100000.0f) {
         std::cerr << "[SpatialConfig] z_layer_step=" << m_fZLayerStep
-                  << " must be > 0, resetting to default 800\n";
+                  << " must be a finite value in (0, 100000], resetting to default 800\n";
         m_fZLayerStep = 800.0f;
     }
 
-    // z_animation_stiffness: must be >= 1 to avoid motionless spring
-    if (m_fZAnimationStiffness < 1.0f) {
+    // z_animation_stiffness: must be >= 1 and finite to avoid motionless spring
+    if (!std::isfinite(m_fZAnimationStiffness) || m_fZAnimationStiffness < 1.0f) {
         std::cerr << "[SpatialConfig] z_animation_stiffness=" << m_fZAnimationStiffness
-                  << " must be >= 1.0, clamping\n";
-        m_fZAnimationStiffness = 1.0f;
+                  << " must be a finite value >= 1.0, clamping\n";
+        m_fZAnimationStiffness = std::isfinite(m_fZAnimationStiffness) ? 1.0f : 200.0f;
     }
 
-    // z_animation_damping: must be >= 0
-    if (m_fZAnimationDamping < 0.0f) {
+    // z_animation_damping: must be >= 0 and finite
+    if (!std::isfinite(m_fZAnimationDamping) || m_fZAnimationDamping < 0.0f) {
         std::cerr << "[SpatialConfig] z_animation_damping=" << m_fZAnimationDamping
-                  << " must be >= 0.0, clamping\n";
-        m_fZAnimationDamping = 0.0f;
+                  << " must be a finite value >= 0.0, clamping\n";
+        m_fZAnimationDamping = std::isfinite(m_fZAnimationDamping) ? 0.0f : 20.0f;
     }
 
-    // z_fov_degrees: glm::perspective is undefined at 0 or >= 180
-    if (m_fZFOVDegrees <= 0.0f || m_fZFOVDegrees >= 180.0f) {
+    // z_fov_degrees: glm::perspective is undefined at 0 or >= 180; must be finite
+    if (!std::isfinite(m_fZFOVDegrees) || m_fZFOVDegrees <= 0.0f || m_fZFOVDegrees >= 180.0f) {
         std::cerr << "[SpatialConfig] z_fov_degrees=" << m_fZFOVDegrees
-                  << " must be in (0, 180), resetting to default 60\n";
+                  << " must be a finite value in (0, 180), resetting to default 60\n";
         m_fZFOVDegrees = 60.0f;
     }
 
-    // z_near_plane: must be > 0 — glm::perspective divides by (far - near); near=0 → NaN
-    if (m_fZNearPlane <= 0.0f) {
+    // z_near_plane: must be > 0 and finite — glm::perspective divides by (far - near)
+    if (!std::isfinite(m_fZNearPlane) || m_fZNearPlane <= 0.0f) {
         std::cerr << "[SpatialConfig] z_near_plane=" << m_fZNearPlane
-                  << " must be > 0, resetting to default 0.1\n";
+                  << " must be a finite value > 0, resetting to default 0.1\n";
         m_fZNearPlane = 0.1f;
     }
 
-    // z_far_plane: must be strictly greater than near
-    if (m_fZFarPlane <= m_fZNearPlane) {
+    // z_far_plane: must be finite and strictly greater than near
+    if (!std::isfinite(m_fZFarPlane) || m_fZFarPlane <= m_fZNearPlane) {
         std::cerr << "[SpatialConfig] z_far_plane=" << m_fZFarPlane
-                  << " must be > z_near_plane (" << m_fZNearPlane
+                  << " must be a finite value > z_near_plane (" << m_fZNearPlane
                   << "), resetting to default 10000\n";
         m_fZFarPlane = 10000.0f;
     }
