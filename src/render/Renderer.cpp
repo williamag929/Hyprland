@@ -395,7 +395,9 @@ void CHyprRenderer::renderWorkspaceWindows(PHLMONITOR pMonitor, PHLWORKSPACE pWo
         windows.emplace_back(w);
     }
 
-    // [SPATIAL] Depth sorting — painter's algorithm (back to front by Z coordinate)
+    // [SPATIAL] Depth sorting — painter's algorithm (back to front by Z coordinate).
+    // Applied once to the shared `windows` vector before ALL passes (tiled, popup, floating)
+    // so every subsequent iteration loop inherits the correct back-to-front render order.
     if (g_pZSpaceManager) {
         std::sort(windows.begin(), windows.end(),
             [](const PHLWINDOWREF& a, const PHLWINDOWREF& b) {
@@ -463,6 +465,10 @@ void CHyprRenderer::renderWorkspaceWindows(PHLMONITOR pMonitor, PHLWORKSPACE pWo
     }
 
     // floating on top
+    // [SPATIAL] The focused floating window is deferred to render last so it always
+    // appears on top of other floating windows at the same Z layer — mirrors the
+    // lastWindow deferral in the non-floating main pass above.
+    PHLWINDOW lastFloatingWindow;
     for (auto& w : windows) {
         if (!w)
             continue;
@@ -479,9 +485,19 @@ void CHyprRenderer::renderWorkspaceWindows(PHLMONITOR pMonitor, PHLWORKSPACE pWo
         if (pWorkspace->m_isSpecialWorkspace && w->m_monitor != pWorkspace->m_monitor)
             continue; // special on another are rendered as a part of the base pass
 
+        // Defer the focused floating window so it renders last (on top)
+        if (w == Desktop::focusState()->window()) {
+            lastFloatingWindow = w.lock();
+            continue;
+        }
+
         // render the bad boy
         renderWindow(w.lock(), pMonitor, time, true, RENDER_PASS_ALL);
     }
+
+    // Render the focused floating window on top of all other floating windows
+    if (lastFloatingWindow)
+        renderWindow(lastFloatingWindow, pMonitor, time, true, RENDER_PASS_ALL);
 }
 
 void CHyprRenderer::renderWindow(PHLWINDOW pWindow, PHLMONITOR pMonitor, const Time::steady_tp& time, bool decorate, eRenderPassMode mode, bool ignorePosition, bool standalone) {
