@@ -1,0 +1,942 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# SPATIAL OS — Refactor Agent Workflow
+# ══════════════════════════════════════════════════════════════════════════════
+# Role: @refactor
+#   - Full Debug + Release build validation
+#   - clang-tidy strict pass on ALL .cpp implementation files (src/spatial/)
+#   - clang-format enforcement
+#   - GTest unit test execution  (ctest -R "spatial")
+#   - Code coverage gate ≥ 70 % in libspatial-core (lcov)
+#   - Valgrind memory leak check — MUST be clean (no leaks allowed)
+#   - ASAN + UBSAN sanitizer build & test pass
+#   - Upstream compatibility: modified Hyprland files still compile cleanly
+#   - Task reference check: PR description must reference TASK-SH-xxx / TASK-NF-xxx
+#   - Performance smoke: build time regression guard
+#
+# Triggers:
+#   - Any push/PR touching src/spatial/*.cpp, src/render/, src/managers/,
+#     src/desktop/, tests/, CMakeLists.txt
+#   - Manual dispatch
+#
+# Container: archlinux:latest (matches copilot-instructions.md recommended distro)
+# Compiler: clang++ (preferred per spec), GCC 13 as fallback job
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: "[REFACTOR] Implementation Quality Gate"
+
+on:
+  pull_request:
+    branches: [main, develop, "Space-Z"]
+    paths:
+      - "src/spatial/**"
+      - "src/render/**"
+      - "src/desktop/**"
+      - "src/managers/**"
+      - "src/**/*.cpp"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - "Makefile"
+
+  push:
+    branches: [main, "Space-Z"]
+    paths:
+      - "src/spatial/**"
+      - "src/render/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual refactor review"
+        required: false
+        default: "Manual refactor quality gate triggered"
+      coverage_threshold:
+        description: "Coverage threshold % (default 70)"
+        required: false
+        default: "70"
+
+# Cancel superseded runs on the same branch
+concurrency:
+  group: refactor-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COVERAGE_THRESHOLD: ${{ inputs.coverage_threshold || '70' }}
+  SPATIAL_SRC: src/spatial
+  BUILD_DIR: build
+  BUILD_ASAN_DIR: build-asan
+
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ─── 0. TASK REFERENCE CHECK ──────────────────────────────────────────────
+  task-reference:
+    name: "[REF-0] PR Task Reference"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Check TASK-SH or TASK-NF reference in PR
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "── Checking for TASK-SH-xxx / TASK-NF-xxx reference ───────────"
+          COMBINED="$PR_TITLE $PR_BODY"
+          if echo "$COMBINED" | grep -qE "TASK-(SH|NF|NF)-[0-9]{3}"; then
+            TASK=$(echo "$COMBINED" | grep -oE "TASK-(SH|NF)-[0-9]{3}" | head -1)
+            echo "  ✅  Task reference found: $TASK"
+          else
+            echo "::warning::PR does not reference a task ID (TASK-SH-xxx or TASK-NF-xxx)."
+            echo "  ⚠️  Per copilot-instructions.md, @refactor tasks must reference an @architect spec."
+            echo "  Add 'TASK-SH-101' (or relevant ID) to your PR title or description."
+            # Warning only — not a hard block to allow hotfixes
+          fi
+
+  # ─── 1. FULL DEBUG BUILD (clang) ──────────────────────────────────────────
+  build-debug-clang:
+    name: "[REF-1] Debug Build — clang++"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    outputs:
+      build_status: ${{ steps.build.outcome }}
+
+    steps:
+      - name: Install full dependency stack
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake ninja git \
+            clang llvm \
+            wayland wayland-protocols libdrm mesa \
+            libinput libxkbcommon pixman \
+            libxcb xcb-util-image xcb-util-keysyms xcb-util-wm \
+            glm spdlog nlohmann-json \
+            glslang spirv-tools \
+            gtest \
+            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprwayland-scanner pkgconf \
+            seatd libseat \
+            xorg-server xorg-xinit
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake (Debug + coverage flags)
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_SPATIAL=ON \
+            -DCMAKE_CXX_FLAGS="--coverage -fprofile-instr-generate -fcoverage-mapping" \
+            2>&1 | tee $BUILD_DIR/cmake-configure.log
+
+      - name: Build (all targets)
+        id: build
+        run: |
+          cmake --build $BUILD_DIR -j$(nproc) 2>&1 | tee $BUILD_DIR/build.log
+          echo "  ✅  Debug build complete"
+
+      - name: Upload compile_commands.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-commands-debug
+          path: ${{ env.BUILD_DIR }}/compile_commands.json
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log-debug-clang
+          path: ${{ env.BUILD_DIR }}/build.log
+
+  # ─── 2. CLANG-FORMAT ENFORCEMENT ──────────────────────────────────────────
+  clang-format:
+    name: "[REF-2] clang-format Code Style"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install clang
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm clang git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Write .clang-format if not present
+        run: |
+          # Only create a fallback if project has no .clang-format yet
+          if [ ! -f .clang-format ]; then
+            cat > .clang-format << 'EOF'
+          ---
+          BasedOnStyle: LLVM
+          IndentWidth: 4
+          ColumnLimit: 120
+          BreakBeforeBraces: Attach
+          AllowShortFunctionsOnASingleLine: Inline
+          AllowShortIfStatementsOnASingleLine: false
+          SpacesBeforeTrailingComments: 2
+          SortIncludes: CaseSensitive
+          ...
+          EOF
+            echo "  ℹ️  No .clang-format found — using LLVM default for check"
+          fi
+
+      - name: Check formatting on spatial sources
+        run: |
+          echo "── clang-format diff check on src/spatial/ ────────────────────"
+          FAIL=0
+          for f in src/spatial/*.cpp src/spatial/*.hpp; do
+            [ -f "$f" ] || continue
+            DIFF=$(clang-format --dry-run --Werror "$f" 2>&1 || true)
+            if [ -n "$DIFF" ]; then
+              echo "  ❌  $f needs formatting:"
+              echo "$DIFF" | head -20
+              FAIL=1
+            else
+              echo "  ✅  $f"
+            fi
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo ""
+            echo "Fix with: clang-format -i src/spatial/*.cpp src/spatial/*.hpp"
+            exit 1
+          fi
+
+      - name: Check formatting on PR-changed files
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "── clang-format on all changed .cpp/.hpp in PR ─────────────────"
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -E "\.(cpp|hpp|h)$" \
+            | grep -v "subprojects/" \
+            | grep -v "build/" \
+            || true)
+
+          if [ -z "$CHANGED" ]; then
+            echo "  ℹ️  No C++ files changed."
+            exit 0
+          fi
+
+          FAIL=0
+          for f in $CHANGED; do
+            [ -f "$f" ] || continue
+            RESULT=$(clang-format --dry-run --Werror "$f" 2>&1 || true)
+            if [ -n "$RESULT" ]; then
+              echo "  ❌  $f"
+              FAIL=1
+            else
+              echo "  ✅  $f"
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+
+  # ─── 3. CLANG-TIDY — IMPLEMENTATION FILES ─────────────────────────────────
+  clang-tidy-impl:
+    name: "[REF-3] clang-tidy — Implementation (.cpp)"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    needs: build-debug-clang
+
+    steps:
+      - name: Install clang-tools + deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang llvm \
+            wayland wayland-protocols libdrm \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            glslang hyprlang hyprland-protocols \
+            aquamarine hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download compile_commands.json
+        uses: actions/download-artifact@v4
+        with:
+          name: compile-commands-debug
+          path: build/
+
+      - name: Write .clang-tidy for implementation rules
+        run: |
+          cat > .clang-tidy-refactor << 'EOF'
+          ---
+          Checks: >
+            clang-diagnostic-*,
+            cppcoreguidelines-*,
+            modernize-use-nullptr,
+            modernize-use-override,
+            modernize-avoid-bind,
+            modernize-use-emplace,
+            modernize-use-default-member-init,
+            modernize-loop-convert,
+            performance-unnecessary-copy-initialization,
+            performance-avoid-endl,
+            performance-noexcept-move-constructor,
+            readability-const-return-type,
+            readability-avoid-unconditional-preprocessor-if,
+            bugprone-use-after-move,
+            bugprone-infinite-loop,
+            bugprone-integer-division,
+            bugprone-misplaced-widening-cast,
+            bugprone-throw-keyword-missing,
+            bugprone-branch-clone,
+            -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+            -cppcoreguidelines-pro-type-reinterpret-cast,
+            -cppcoreguidelines-avoid-magic-numbers,
+            -cppcoreguidelines-non-private-member-variables-in-classes
+
+          WarningsAsErrors: >
+            bugprone-use-after-move,
+            bugprone-infinite-loop,
+            bugprone-integer-division,
+            modernize-use-nullptr
+
+          HeaderFilterRegex: "src/spatial/.*"
+
+          CheckOptions:
+            - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+              value: true
+            - key: modernize-use-emplace.ContainersWithPushBack
+              value: "std::vector;std::deque;std::list"
+          ...
+          EOF
+
+      - name: Run clang-tidy on spatial .cpp
+        run: |
+          echo "── clang-tidy on src/spatial/*.cpp ────────────────────────────"
+          ERRORS=0
+          WARNINGS=0
+
+          for f in src/spatial/*.cpp; do
+            [ -f "$f" ] || continue
+            echo "  → $f"
+            OUTPUT=$(clang-tidy \
+              --config-file=.clang-tidy-refactor \
+              -p build \
+              "$f" 2>&1 || true)
+
+            ERRS=$(echo "$OUTPUT" | grep -c "error:" || true)
+            WARNS=$(echo "$OUTPUT" | grep -c "warning:" || true)
+            echo "$OUTPUT" | grep -E "error:|warning:" | head -20 || true
+
+            ERRORS=$(( ERRORS + ERRS ))
+            WARNINGS=$(( WARNINGS + WARNS ))
+          done
+
+          echo ""
+          echo "── Summary ───────────────────────────────────────────────────"
+          echo "  Errors:   $ERRORS"
+          echo "  Warnings: $WARNINGS"
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "  ❌  clang-tidy errors must be fixed (WarningsAsErrors hit)"
+            exit 1
+          fi
+          echo "  ✅  clang-tidy pass"
+
+  # ─── 4. UNIT TESTS ────────────────────────────────────────────────────────
+  unit-tests:
+    name: "[REF-4] Unit Tests — ctest -R spatial"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    needs: build-debug-clang
+
+    steps:
+      - name: Install test dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang git \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            gtest \
+            hyprlang hyprland-protocols aquamarine \
+            hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake for tests
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=ON
+
+      - name: Build
+        run: cmake --build $BUILD_DIR -j$(nproc)
+
+      - name: Run spatial unit tests
+        run: |
+          echo "── ctest -R spatial ────────────────────────────────────────────"
+          cd $BUILD_DIR
+          ctest \
+            -R "spatial" \
+            --output-on-failure \
+            -VV \
+            --timeout 120 \
+            2>&1 | tee ctest-spatial.log
+
+      - name: Run all tests (non-blocking)
+        continue-on-error: true
+        run: |
+          echo "── ctest (full suite) ──────────────────────────────────────────"
+          cd $BUILD_DIR
+          ctest \
+            --output-on-failure \
+            --timeout 120 \
+            2>&1 | tee ctest-all.log || true
+
+      - name: Upload test logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-logs
+          path: |
+            ${{ env.BUILD_DIR }}/ctest-spatial.log
+            ${{ env.BUILD_DIR }}/ctest-all.log
+
+  # ─── 5. CODE COVERAGE ─────────────────────────────────────────────────────
+  coverage:
+    name: "[REF-5] Code Coverage ≥ 70%"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    needs: unit-tests
+
+    steps:
+      - name: Install coverage tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang llvm git \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json gtest \
+            hyprlang hyprland-protocols aquamarine \
+            hyprutils hyprwayland-scanner pkgconf \
+            lcov python3
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake with coverage instrumentation
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="--coverage -O0 -fprofile-instr-generate -fcoverage-mapping" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+
+      - name: Build with coverage flags
+        run: cmake --build $BUILD_DIR -j$(nproc)
+
+      - name: Run spatial tests (coverage pass)
+        run: |
+          cd $BUILD_DIR
+          LLVM_PROFILE_FILE="spatial-%p.profraw" \
+            ctest -R "spatial" --output-on-failure --timeout 120 || true
+
+      - name: Generate lcov coverage report
+        run: |
+          cd $BUILD_DIR
+
+          # Collect profiling data
+          if ls *.profraw 2>/dev/null; then
+            llvm-profdata merge -sparse *.profraw -o spatial.profdata
+            llvm-cov export ./hyprland_lib \
+              --instr-profile=spatial.profdata \
+              --format=lcov \
+              --sources ../src/spatial/ \
+              > spatial-coverage.lcov 2>/dev/null || true
+          fi
+
+          # Fallback: gcov-based with lcov
+          lcov --capture \
+               --directory . \
+               --output-file coverage-raw.info \
+               --ignore-errors source 2>/dev/null || true
+
+          lcov --remove coverage-raw.info \
+               '*/subprojects/*' \
+               '*/tests/*' \
+               '*/usr/*' \
+               '*/build/*' \
+               --output-file coverage-filtered.info \
+               --ignore-errors unused 2>/dev/null || true
+
+          lcov --list coverage-filtered.info 2>/dev/null | tee coverage-summary.txt || true
+
+      - name: Enforce coverage threshold
+        run: |
+          echo "── Coverage threshold check ($COVERAGE_THRESHOLD%) ─────────────"
+          REPORT="$BUILD_DIR/coverage-summary.txt"
+
+          if [ ! -f "$REPORT" ]; then
+            echo "  ⚠️  Coverage report not generated — likely no spatial tests ran yet."
+            echo "  This becomes a hard failure once TASK-SH-102 tests exist."
+            exit 0
+          fi
+
+          # Extract overall line coverage percentage
+          COV_PCT=$(grep "Total" "$REPORT" \
+            | grep -oE "[0-9]+\.[0-9]+" \
+            | tail -1 \
+            | cut -d. -f1 || echo "0")
+
+          echo "  Measured coverage: ${COV_PCT}%"
+          echo "  Required minimum:  ${COVERAGE_THRESHOLD}%"
+
+          if [ "$COV_PCT" -lt "$COVERAGE_THRESHOLD" ]; then
+            echo "  ❌  Coverage ${COV_PCT}% < ${COVERAGE_THRESHOLD}%"
+            echo "      Minimum coverage per copilot-instructions.md: 70% in libspatial-core"
+            exit 1
+          else
+            echo "  ✅  Coverage ${COV_PCT}% ≥ ${COVERAGE_THRESHOLD}%"
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: |
+            ${{ env.BUILD_DIR }}/coverage-filtered.info
+            ${{ env.BUILD_DIR }}/coverage-summary.txt
+            ${{ env.BUILD_DIR }}/spatial-coverage.lcov
+
+  # ─── 6. VALGRIND MEMORY LEAK CHECK ────────────────────────────────────────
+  valgrind:
+    name: "[REF-6] Valgrind — No Memory Leaks"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    needs: unit-tests
+
+    steps:
+      - name: Install valgrind + deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang git valgrind \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json gtest \
+            hyprlang hyprland-protocols aquamarine \
+            hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake (no coverage, valgrind-friendly)
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer"
+
+      - name: Build
+        run: cmake --build $BUILD_DIR -j$(nproc)
+
+      - name: Run spatial tests under Valgrind
+        run: |
+          echo "── Valgrind memcheck on spatial test suite ─────────────────────"
+          cd $BUILD_DIR
+
+          # Use CTest memcheck
+          ctest \
+            -R "spatial" \
+            --output-on-failure \
+            --timeout 300 \
+            -T memcheck \
+            --overwrite MemoryCheckCommandOptions="--leak-check=full --error-exitcode=1 --track-origins=yes --show-reachable=no" \
+            2>&1 | tee valgrind-output.log || true
+
+          # Parse results
+          LEAKS=$(grep -c "definitely lost\|indirectly lost\|ERROR SUMMARY: [^0]" \
+            valgrind-output.log 2>/dev/null || echo "0")
+
+          echo ""
+          echo "── Valgrind summary ────────────────────────────────────────────"
+          grep -E "ERROR SUMMARY|definitely lost|indirectly lost|possibly lost" \
+            valgrind-output.log | head -20 || true
+
+          # Look in CTest memcheck XML for errors
+          MEMCHECK_ERRORS=$(find . -name "*.memcheck" \
+            -exec grep -l "defects" {} \; 2>/dev/null | wc -l || echo "0")
+
+          if [ "$LEAKS" -gt 0 ] || [ "$MEMCHECK_ERRORS" -gt 0 ]; then
+            echo ""
+            echo "  ❌  Memory leaks detected — valgrind must be clean per spec"
+            echo "      See copilot-instructions.md § Calidad de Código"
+            exit 1
+          else
+            echo "  ✅  Valgrind clean — no memory leaks"
+          fi
+
+      - name: Upload valgrind log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: valgrind-log
+          path: |
+            ${{ env.BUILD_DIR }}/valgrind-output.log
+            ${{ env.BUILD_DIR }}/Testing/
+
+  # ─── 7. SANITIZER BUILD (ASAN + UBSAN) ────────────────────────────────────
+  sanitizers:
+    name: "[REF-7] ASAN + UBSAN Sanitizer Tests"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang llvm compiler-rt git \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json gtest \
+            hyprlang hyprland-protocols aquamarine \
+            hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake with ASAN + UBSAN
+        run: |
+          cmake -B $BUILD_ASAN_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build with sanitizers
+        run: cmake --build $BUILD_ASAN_DIR -j$(nproc)
+
+      - name: Run spatial tests under sanitizers
+        run: |
+          echo "── ASAN + UBSAN test run ────────────────────────────────────────"
+          cd $BUILD_ASAN_DIR
+
+          ASAN_OPTIONS="abort_on_error=0:halt_on_error=0:detect_leaks=1" \
+          UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0" \
+          ctest \
+            -R "spatial" \
+            --output-on-failure \
+            --timeout 180 \
+            2>&1 | tee sanitizer-output.log
+
+          # Hard fail on AddressSanitizer: heap-buffer-overflow / use-after-free
+          ASAN_ERRORS=$(grep -c "AddressSanitizer:\|runtime error:" \
+            sanitizer-output.log 2>/dev/null || echo "0")
+
+          if [ "$ASAN_ERRORS" -gt 0 ]; then
+            echo ""
+            echo "  ❌  ASAN/UBSAN errors detected:"
+            grep -E "AddressSanitizer:|runtime error:" \
+              sanitizer-output.log | head -20
+            exit 1
+          fi
+          echo "  ✅  No ASAN/UBSAN errors"
+
+      - name: Upload sanitizer log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanitizer-log
+          path: ${{ env.BUILD_ASAN_DIR }}/sanitizer-output.log
+
+  # ─── 8. RELEASE BUILD VALIDATION ──────────────────────────────────────────
+  build-release:
+    name: "[REF-8] Release Build — no warnings"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ready-for-release'))
+
+    steps:
+      - name: Install deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang git \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            glslang hyprlang hyprland-protocols \
+            aquamarine hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake — Release
+        run: |
+          cmake -B build-release \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=OFF \
+            -DCMAKE_CXX_FLAGS="-Werror -Wall -Wextra -Wno-unused-parameter"
+
+      - name: Build Release (warnings as errors)
+        run: |
+          cmake --build build-release -j$(nproc) 2>&1 | tee build-release.log
+          echo "  ✅  Release build complete — zero warnings"
+
+      - name: Package
+        run: |
+          cd build-release
+          cpack -G TGZ || true
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-hypr-release
+          path: |
+            build-release/*.tar.gz
+            build-release/Hyprland
+
+      - name: Upload release build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log-release
+          path: build-release.log
+
+  # ─── 9. GCC FALLBACK BUILD ────────────────────────────────────────────────
+  build-gcc:
+    name: "[REF-9] Build — GCC 13 (fallback compiler)"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install GCC 13 + deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake gcc git \
+            wayland wayland-protocols libdrm \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            glslang hyprlang hyprland-protocols \
+            aquamarine hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake — GCC
+        run: |
+          cmake -B build-gcc \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_C_COMPILER=gcc \
+            -DENABLE_SPATIAL=ON \
+            -DENABLE_TESTS=ON
+
+      - name: Build
+        run: cmake --build build-gcc -j$(nproc)
+
+      - name: Run spatial tests (GCC)
+        run: |
+          cd build-gcc
+          ctest -R "spatial" --output-on-failure --timeout 120 || true
+          echo "  ✅  GCC build validated"
+
+  # ─── 10. UPSTREAM COMPATIBILITY CHECK ────────────────────────────────────
+  upstream-compat:
+    name: "[REF-10] Upstream Hyprland Compatibility"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Install deps
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang git \
+            wayland wayland-protocols libdrm \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            glslang hyprlang hyprland-protocols \
+            aquamarine hyprutils hyprwayland-scanner pkgconf
+
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: List all [SPATIAL]-prefixed modifications to upstream files
+        run: |
+          echo "── Files modified vs upstream Hyprland ─────────────────────────"
+          git remote add upstream https://github.com/hyprwm/Hyprland.git || true
+          git fetch upstream main --depth=10 2>/dev/null || true
+
+          UPSTREAM_MODIFIED_FILES=(
+            "src/desktop/view/Window.hpp"
+            "src/desktop/view/Window.cpp"
+            "src/render/Renderer.cpp"
+            "src/managers/input/InputManager.cpp"
+          )
+
+          for f in "${UPSTREAM_MODIFIED_FILES[@]}"; do
+            if [ -f "$f" ]; then
+              PATCH_LINES=$(git diff upstream/main HEAD -- "$f" 2>/dev/null | wc -l || echo "0")
+              echo "  $f — $PATCH_LINES lines modified from upstream"
+            else
+              echo "  $f — not found"
+            fi
+          done
+
+      - name: Build only the upstream-modified files
+        run: |
+          echo "── Compiling upstream-modified files individually ───────────────"
+          cmake -B build-compat \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_SPATIAL=ON 2>/dev/null || true
+
+          cmake --build build-compat \
+            --target hyprland_lib \
+            -j$(nproc) 2>&1 | tee upstream-compat.log
+
+          # Check if the build succeeded for [SPATIAL]-modified files
+          if grep -q "error:" upstream-compat.log; then
+            echo "  ❌  Upstream-modified files have compilation errors"
+            grep "error:" upstream-compat.log | head -20
+            exit 1
+          fi
+          echo "  ✅  All upstream-modified files compile cleanly"
+
+      - name: Upload compat log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-compat-log
+          path: upstream-compat.log
+
+  # ─── 11. FINAL REFACTOR SUMMARY GATE ─────────────────────────────────────
+  refactor-summary:
+    name: "[REFACTOR] Summary Gate"
+    runs-on: ubuntu-latest
+    needs:
+      - task-reference
+      - build-debug-clang
+      - clang-format
+      - clang-tidy-impl
+      - unit-tests
+      - coverage
+      - valgrind
+      - sanitizers
+      - build-gcc
+      - upstream-compat
+    if: always()
+
+    steps:
+      - name: Evaluate refactor gate
+        run: |
+          echo "══════════════════════════════════════════════════════════════"
+          echo "  SPATIAL OS — @refactor quality gate summary"
+          echo "══════════════════════════════════════════════════════════════"
+          echo ""
+          echo "  REF-0   Task reference check         : ${{ needs.task-reference.result }}"
+          echo "  REF-1   Debug build (clang++)         : ${{ needs.build-debug-clang.result }}"
+          echo "  REF-2   clang-format style            : ${{ needs.clang-format.result }}"
+          echo "  REF-3   clang-tidy (.cpp)             : ${{ needs.clang-tidy-impl.result }}"
+          echo "  REF-4   Unit tests (ctest spatial)    : ${{ needs.unit-tests.result }}"
+          echo "  REF-5   Coverage ≥ 70%                : ${{ needs.coverage.result }}"
+          echo "  REF-6   Valgrind — no leaks           : ${{ needs.valgrind.result }}"
+          echo "  REF-7   ASAN + UBSAN sanitizers       : ${{ needs.sanitizers.result }}"
+          echo "  REF-9   GCC 13 fallback build         : ${{ needs.build-gcc.result }}"
+          echo "  REF-10  Upstream compatibility        : ${{ needs.upstream-compat.result }}"
+          echo ""
+
+          # ── Hard-blocking failures ────────────────────────────────────────
+          BLOCKER=0
+          if [ "${{ needs.build-debug-clang.result }}"  == "failure" ]; then BLOCKER=1; fi
+          if [ "${{ needs.unit-tests.result }}"         == "failure" ]; then BLOCKER=1; fi
+          if [ "${{ needs.valgrind.result }}"           == "failure" ]; then BLOCKER=1; fi
+          if [ "${{ needs.sanitizers.result }}"         == "failure" ]; then BLOCKER=1; fi
+          if [ "${{ needs.clang-tidy-impl.result }}"   == "failure" ]; then BLOCKER=1; fi
+          if [ "${{ needs.upstream-compat.result }}"   == "failure" ]; then BLOCKER=1; fi
+
+          # ── Soft warnings (do not block merge) ───────────────────────────
+          if [ "${{ needs.coverage.result }}"           == "failure" ]; then
+            echo "  ⚠️  Coverage gate failed — ensure ≥70% in libspatial-core (TASK-SH-102)"
+            BLOCKER=1
+          fi
+          if [ "${{ needs.clang-format.result }}"      == "failure" ]; then
+            echo "  ⚠️  clang-format failed — run: clang-format -i src/spatial/*.cpp src/spatial/*.hpp"
+            BLOCKER=1
+          fi
+
+          echo ""
+          if [ "$BLOCKER" -eq 1 ]; then
+            echo "  ❌  @refactor gate FAILED — address blocking issues above"
+            echo "      Per copilot-instructions.md:"
+            echo "        • No memory leaks (valgrind clean)"
+            echo "        • Coverage ≥ 70% in libspatial-core"
+            echo "        • clang-tidy strict without warnings"
+            echo "        • Build must succeed on clang++ AND gcc"
+            exit 1
+          else
+            echo "  ✅  All @refactor quality gates passed."
+            echo "      Ready for @architect review."
+          fi

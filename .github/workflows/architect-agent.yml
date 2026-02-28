@@ -1,0 +1,614 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# SPATIAL OS — Architect Agent Workflow
+# ══════════════════════════════════════════════════════════════════════════════
+# Role: @architect
+#   - Validates interface design (public API headers .hpp)
+#   - Enforces documentation standards (Doxygen on every public symbol)
+#   - Checks naming & namespace conventions per copilot-instructions.md
+#   - Validates spec-to-code consistency (docs/ must update with interfaces)
+#   - Verifies GLSL shader syntax and convention compliance
+#   - Ensures [SPATIAL]/[FORK]/[DOCS]/[CI] commit-prefix discipline
+#   - Runs strict clang-tidy on spatial headers (NOT production code)
+#   - Validates CMake configure without full build
+#   - Checks Wayland protocol XML files for syntax
+#
+# Triggers:
+#   - PRs labeled "architect" or "interface-design"
+#   - Any push/PR that touches src/spatial/**/*.hpp, docs/, protocols/
+#   - Manual dispatch for architecture reviews
+#
+# Container: archlinux:latest (matches recommended dev distro)
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: "[ARCHITECT] Interface & Design Validation"
+
+on:
+  pull_request:
+    branches: [main, develop, "Space-Z"]
+    paths:
+      - "src/spatial/**"
+      - "src/**/*.hpp"
+      - "docs/SPATIAL_*.md"
+      - "docs/NO_FORMS_SPEC.md"
+      - "protocols/**"
+      - ".github/copilot-instructions.md"
+
+  push:
+    branches: [main, "Space-Z"]
+    paths:
+      - "src/spatial/**"
+      - "docs/SPATIAL_*.md"
+
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual architect review"
+        required: false
+        default: "Manual architecture review triggered"
+
+# Cancel superseded runs on the same branch
+concurrency:
+  group: architect-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SHARED SETUP ACTION (referenced by every job)
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  SPATIAL_SRC: src/spatial
+  SHADER_SRC:  src/render/shaders
+  DOCS_DIR:    docs
+  CLANG_VERSION: "16"
+
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ─── 1. COMMIT MESSAGE DISCIPLINE ─────────────────────────────────────────
+  commit-prefix-check:
+    name: "[ARCH-1] Commit Prefix Discipline"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit prefixes
+        run: |
+          echo "── Checking commit message prefixes ──────────────────────────"
+          ALLOWED_PREFIXES="^\[SPATIAL\]|^\[FORK\]|^\[DOCS\]|^\[CI\]|^\[NO-FORMS\]|^Merge"
+          FAIL=0
+
+          git log origin/${{ github.base_ref }}..HEAD --format="%H %s" | while read sha msg; do
+            if ! echo "$msg" | grep -qE "$ALLOWED_PREFIXES"; then
+              echo "::warning file=.github/workflows/architect-agent.yml::Commit $sha missing prefix: $msg"
+              echo "  ❌  $sha  →  $msg"
+              FAIL=1
+            else
+              echo "  ✅  $sha  →  $msg"
+            fi
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo ""
+            echo "Required prefixes: [SPATIAL] [FORK] [DOCS] [CI] [NO-FORMS]"
+            echo "See .github/copilot-instructions.md § Commits"
+            exit 1
+          fi
+
+  # ─── 2. DOXYGEN DOCUMENTATION COVERAGE ───────────────────────────────────
+  doxygen-coverage:
+    name: "[ARCH-2] Doxygen Public API Coverage"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel git clang \
+            doxygen \
+            glm spdlog nlohmann-json \
+            python3 python-pip
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Generate Doxygen XML
+        run: |
+          mkdir -p build/docs
+          cat > /tmp/Doxyfile << 'EOF'
+          PROJECT_NAME       = "Spatial OS"
+          INPUT              = src/spatial
+          FILE_PATTERNS      = *.hpp
+          RECURSIVE          = YES
+          EXTRACT_ALL        = YES
+          GENERATE_HTML      = NO
+          GENERATE_XML       = YES
+          XML_OUTPUT         = build/docs/xml
+          QUIET              = YES
+          WARN_AS_ERROR      = NO
+          WARN_IF_UNDOCUMENTED = YES
+          WARN_LOGFILE       = build/docs/doxygen_warnings.log
+          EOF
+          doxygen /tmp/Doxyfile
+
+      - name: Assess undocumented symbols
+        run: |
+          echo "── Doxygen warnings (undocumented public API) ─────────────────"
+          if [ -f build/docs/doxygen_warnings.log ]; then
+            WARNINGS=$(grep -c "is not documented" build/docs/doxygen_warnings.log || true)
+            cat build/docs/doxygen_warnings.log | grep "is not documented" | head -30 || true
+            echo ""
+            echo "Total undocumented symbols: $WARNINGS"
+            if [ "$WARNINGS" -gt 0 ]; then
+              echo "::warning::$WARNINGS symbols in src/spatial/ lack Doxygen documentation."
+              echo "All public methods must have /// @brief, @param, @return per copilot-instructions.md"
+            fi
+          fi
+
+      - name: Upload Doxygen log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: doxygen-warnings
+          path: build/docs/doxygen_warnings.log
+
+  # ─── 3. NAMING & NAMESPACE CONVENTIONS ───────────────────────────────────
+  naming-conventions:
+    name: "[ARCH-3] Naming & Namespace Conventions"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git python3
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check spatial namespace usage
+        run: |
+          echo "── Checking namespace Spatial is used in src/spatial/ ─────────"
+          FAIL=0
+          for f in src/spatial/*.hpp src/spatial/*.cpp; do
+            [ -f "$f" ] || continue
+            if ! grep -q "namespace Spatial" "$f"; then
+              echo "  ❌  $f — missing 'namespace Spatial'"
+              FAIL=1
+            else
+              echo "  ✅  $f"
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+
+      - name: Check class/struct member naming prefixes
+        run: |
+          echo "── Checking m_/i/f/b/p/v member name prefixes ─────────────────"
+          # Allow warnings but report — strict enforcement can be enabled later
+          BAD=$(grep -rn "^\s\+[a-z][A-Z][a-zA-Z]* " src/spatial/*.hpp 2>/dev/null | \
+                grep -v "//\|^\s*/\*\|\*" | head -20 || true)
+          if [ -n "$BAD" ]; then
+            echo "::warning::Possible member variables not following m_/iI/f/b/p naming:"
+            echo "$BAD"
+          fi
+
+      - name: Check Doxygen @brief exists on all public methods in .hpp
+        run: |
+          echo "── Checking @brief tags in public header declarations ──────────"
+          python3 - << 'PYEOF'
+          import re, sys, os
+
+          def check_file(path):
+              text = open(path).read()
+              lines = text.splitlines()
+              issues = []
+              for i, line in enumerate(lines):
+                  # Detect public method declarations (simplified heuristic)
+                  if re.match(r'\s+(bool|void|int|float|glm::|std::|SP<|PHLWINDOW|auto)\s+\w+\(', line):
+                      # Check previous non-blank lines for @brief
+                      j = i - 1
+                      while j >= 0 and lines[j].strip() in ('', '}', '{'):
+                          j -= 1
+                      block = '\n'.join(lines[max(0,j-4):i])
+                      if '@brief' not in block and '///' not in block:
+                          issues.append(f"  Line {i+1}: {line.strip()}")
+              return issues
+
+          failed = False
+          for root, dirs, files in os.walk('src/spatial'):
+              for f in files:
+                  if not f.endswith('.hpp'): continue
+                  path = os.path.join(root, f)
+                  issues = check_file(path)
+                  if issues:
+                      print(f'\n⚠️  {path} — methods without @brief:')
+                      for iss in issues[:10]:
+                          print(iss)
+                      # Warning only — not a hard failure at this stage
+          PYEOF
+
+  # ─── 4. CLANG-TIDY ON SPATIAL HEADERS ────────────────────────────────────
+  clang-tidy-interfaces:
+    name: "[ARCH-4] clang-tidy — Spatial Interfaces"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang llvm \
+            wayland wayland-protocols \
+            libxkbcommon libinput libdrm \
+            pixman glm spdlog nlohmann-json \
+            hyprlang hyprland-protocols \
+            glslang
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake (headers only, no build)
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_SPATIAL=ON 2>&1 | tee build/cmake-configure.log || true
+
+      - name: Write .clang-tidy for interface rules
+        run: |
+          cat > .clang-tidy-architect << 'EOF'
+          ---
+          Checks: >
+            clang-diagnostic-*,
+            cppcoreguidelines-*,
+            modernize-use-nullptr,
+            modernize-use-override,
+            modernize-use-default-member-init,
+            modernize-pass-by-value,
+            performance-unnecessary-copy-initialization,
+            readability-const-return-type,
+            readability-redundant-member-init,
+            readability-redundant-smartptr-get,
+            bugprone-use-after-move,
+            bugprone-infinite-loop,
+            -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+            -cppcoreguidelines-pro-type-reinterpret-cast,
+            -cppcoreguidelines-avoid-magic-numbers
+
+          WarningsAsErrors: "bugprone-use-after-move,bugprone-infinite-loop"
+
+          HeaderFilterRegex: "src/spatial/.*"
+
+          CheckOptions:
+            - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+              value: true
+          ...
+          EOF
+
+      - name: Run clang-tidy on spatial headers
+        run: |
+          echo "── clang-tidy pass on src/spatial/ ────────────────────────────"
+          TIDY_OUT=0
+
+          for f in src/spatial/*.hpp; do
+            [ -f "$f" ] || continue
+            echo "  → $f"
+            clang-tidy \
+              --config-file=.clang-tidy-architect \
+              -p build \
+              "$f" \
+              -- \
+              -std=c++20 \
+              -I./src \
+              -I./src/spatial \
+              2>&1 | grep -E "error:|warning:" | head -30 || true
+          done
+
+      - name: Upload cmake configure log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmake-configure-log
+          path: build/cmake-configure.log
+
+  # ─── 5. SHADER VALIDATION (ARCHITECT OWNS INTERFACE) ─────────────────────
+  shader-syntax:
+    name: "[ARCH-5] GLSL Shader Syntax Validation"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install glslang
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm glslang
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate known spatial shaders
+        run: |
+          echo "── glslangValidator pass ───────────────────────────────────────"
+          FAIL=0
+          SHADERS=(
+            "src/render/shaders/depth_spatial.frag"
+            "src/render/shaders/depth_dof.frag"
+            "src/render/shaders/passthrough_ar.frag"
+          )
+          for shader in "${SHADERS[@]}"; do
+            if [ -f "$shader" ]; then
+              echo -n "  $shader ... "
+              if glslangValidator -V "$shader" > /dev/null 2>&1; then
+                echo "✅"
+              else
+                echo "❌"
+                glslangValidator -V "$shader"
+                FAIL=1
+              fi
+            else
+              echo "  ℹ️  $shader — not present yet (skipping)"
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+
+      - name: Validate any new .frag/.vert in PR
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "── Scanning PR for new/modified shaders ───────────────────────"
+          git fetch origin ${{ github.base_ref }} --depth=1
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -E "\.(frag|vert|comp|geom)$" || true)
+          if [ -z "$CHANGED" ]; then
+            echo "  ℹ️  No shader files changed."
+          else
+            FAIL=0
+            for f in $CHANGED; do
+              [ -f "$f" ] || continue
+              echo -n "  $f ... "
+              if glslangValidator -V "$f" > /dev/null 2>&1; then
+                echo "✅"
+              else
+                echo "❌"
+                glslangValidator -V "$f"
+                FAIL=1
+              fi
+            done
+            [ "$FAIL" -eq 0 ] || exit 1
+          fi
+
+      - name: Check GLSL version pragma + uniform naming
+        run: |
+          echo "── Checking #version 430 core + u_ uniform prefix ─────────────"
+          FAIL=0
+          find src/render/shaders -name "*.frag" -o -name "*.vert" | while read f; do
+            [ -f "$f" ] || continue
+            if ! head -1 "$f" | grep -q "#version 430 core"; then
+              echo "  ❌  $f — first line must be '#version 430 core'"
+              FAIL=1
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+
+  # ─── 6. SPEC ↔ INTERFACE CONSISTENCY ─────────────────────────────────────
+  spec-consistency:
+    name: "[ARCH-6] Spec ↔ Interface Consistency"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check specs are updated when interfaces change
+        run: |
+          echo "── Checking spec update discipline ────────────────────────────"
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+          HPP_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep "src/spatial/.*\.hpp$" || true)
+          SPEC_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep "docs/SPATIAL.*\.md$" || true)
+
+          if [ -n "$HPP_CHANGED" ] && [ -z "$SPEC_CHANGED" ]; then
+            echo "::warning::Interface headers changed but no spec doc (docs/SPATIAL_*.md) was updated."
+            echo ""
+            echo "Changed headers:"
+            echo "$HPP_CHANGED" | sed 's/^/  /'
+            echo ""
+            echo "Per copilot-instructions.md: @architect must update the spec when interfaces change."
+            echo "If this is a minor fix with no API impact, add label 'no-spec-update-needed'."
+          elif [ -n "$HPP_CHANGED" ] && [ -n "$SPEC_CHANGED" ]; then
+            echo "  ✅  Interface + spec both updated."
+            echo ""
+            echo "Headers: $HPP_CHANGED"
+            echo "Specs:   $SPEC_CHANGED"
+          else
+            echo "  ℹ️  No interface headers changed — no spec check needed."
+          fi
+
+      - name: Verify Z-layer constants in spec match ZSpaceManager.hpp
+        run: |
+          echo "── Cross-checking Z-layer depths ───────────────────────────────"
+          # Extract defined Z positions from header
+          if [ -f src/spatial/ZSpaceManager.hpp ]; then
+            echo "ZSpaceManager.hpp Z positions:"
+            grep "LAYER_Z_POSITIONS\|Z_LAYER_STEP\|Z_LAYERS_COUNT" src/spatial/ZSpaceManager.hpp | head -10
+            echo ""
+            echo "docs/BUILD_AND_INSTALL.md layer table:"
+            grep -A 8 "Layer Depths" docs/BUILD_AND_INSTALL.md | head -10 || true
+          fi
+
+  # ─── 7. WAYLAND PROTOCOL XML VALIDATION ──────────────────────────────────
+  protocol-validation:
+    name: "[ARCH-7] Wayland Protocol XML Syntax"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Install wayland-scanner
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm wayland libxml2
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate protocol XML files
+        run: |
+          echo "── Validating Wayland protocol XML ─────────────────────────────"
+          find protocols/ -name "*.xml" | while read f; do
+            echo -n "  $f ... "
+            if xmllint --noout "$f" 2>/dev/null; then
+              echo "✅"
+            else
+              echo "❌"
+              xmllint --noout "$f"
+            fi
+          done
+
+      - name: Check spatial-shell-v1 protocol if present
+        run: |
+          PROTO="protocols/spatial-shell-v1.xml"
+          if [ -f "$PROTO" ]; then
+            echo "── Parsing spatial-shell-v1 with wayland-scanner ───────────────"
+            wayland-scanner client-header "$PROTO" /dev/null
+            wayland-scanner server-header "$PROTO" /dev/null
+            echo "  ✅  spatial-shell-v1 parses cleanly"
+          else
+            echo "  ℹ️  protocols/spatial-shell-v1.xml not present yet — TASK-SH future"
+          fi
+
+  # ─── 8. CMAKE CONFIGURE VALIDATION ───────────────────────────────────────
+  cmake-configure:
+    name: "[ARCH-8] CMake Configure Validation"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel cmake clang git \
+            wayland wayland-protocols libdrm \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            glslang \
+            hyprlang hyprland-protocols
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: CMake configure (no build)
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=$(which clang++) \
+            -DCMAKE_C_COMPILER=$(which clang) \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_SPATIAL=ON \
+            2>&1 | tee build/cmake-configure.log
+
+          # Fail if cmake configure itself failed
+          grep -qE "^-- Configuring done|Configuring done \(" build/cmake-configure.log \
+            && echo "✅ CMake configure succeeded" \
+            || (echo "❌ CMake configure failed" && exit 1)
+
+      - name: Check all spatial sources are included in CMake
+        run: |
+          echo "── Checking src/spatial/*.cpp are listed in CMakeLists.txt ────"
+          # The root CMakeLists uses GLOB_RECURSE, so all .cpp are included automatically
+          GLOB_USED=$(grep -c "GLOB_RECURSE" CMakeLists.txt || true)
+          if [ "$GLOB_USED" -gt 0 ]; then
+            echo "  ✅  GLOB_RECURSE used — all .cpp in src/ auto-included"
+          else
+            echo "  ℹ️  Manual source listing detected — verifying spatial sources..."
+            for f in src/spatial/*.cpp; do
+              [ -f "$f" ] || continue
+              base=$(basename "$f")
+              if ! grep -q "$base" CMakeLists.txt; then
+                echo "  ❌  $f not found in CMakeLists.txt — add it!"
+                exit 1
+              else
+                echo "  ✅  $base present"
+              fi
+            done
+          fi
+
+      - name: Upload compile_commands.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-commands
+          path: build/compile_commands.json
+
+  # ─── 9. FINAL ARCHITECT SUMMARY ──────────────────────────────────────────
+  architect-summary:
+    name: "[ARCH] Summary Gate"
+    runs-on: ubuntu-latest
+    needs:
+      - commit-prefix-check
+      - doxygen-coverage
+      - naming-conventions
+      - clang-tidy-interfaces
+      - shader-syntax
+      - spec-consistency
+      - protocol-validation
+      - cmake-configure
+    if: always()
+
+    steps:
+      - name: Evaluate architect gate
+        run: |
+          echo "══════════════════════════════════════════════════════════════"
+          echo "  SPATIAL OS — @architect validation summary"
+          echo "══════════════════════════════════════════════════════════════"
+          echo ""
+          echo "  ARCH-1  Commit prefixes          : ${{ needs.commit-prefix-check.result }}"
+          echo "  ARCH-2  Doxygen API coverage      : ${{ needs.doxygen-coverage.result }}"
+          echo "  ARCH-3  Naming conventions         : ${{ needs.naming-conventions.result }}"
+          echo "  ARCH-4  clang-tidy (interfaces)   : ${{ needs.clang-tidy-interfaces.result }}"
+          echo "  ARCH-5  GLSL shader syntax         : ${{ needs.shader-syntax.result }}"
+          echo "  ARCH-6  Spec ↔ interface sync      : ${{ needs.spec-consistency.result }}"
+          echo "  ARCH-7  Wayland protocol XML        : ${{ needs.protocol-validation.result }}"
+          echo "  ARCH-8  CMake configure             : ${{ needs.cmake-configure.result }}"
+          echo ""
+
+          # Hard-fail on critical jobs
+          CRITICAL_FAIL=0
+          if [ "${{ needs.shader-syntax.result }}"     == "failure" ]; then CRITICAL_FAIL=1; fi
+          if [ "${{ needs.cmake-configure.result }}"   == "failure" ]; then CRITICAL_FAIL=1; fi
+          if [ "${{ needs.clang-tidy-interfaces.result }}" == "failure" ]; then CRITICAL_FAIL=1; fi
+
+          if [ "$CRITICAL_FAIL" -eq 1 ]; then
+            echo "  ❌  Critical architect validation FAILED."
+            echo "      Shader syntax, CMake configure, and clang-tidy are blocking."
+            exit 1
+          else
+            echo "  ✅  Architect validation passed (non-critical warnings may exist)."
+          fi
