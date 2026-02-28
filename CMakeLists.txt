@@ -130,6 +130,9 @@ find_package(Threads REQUIRED)
 set(GLES_VERSION "GLES3")
 find_package(OpenGL REQUIRED COMPONENTS ${GLES_VERSION})
 
+# glm — header-only math library used by the spatial Z-layer subsystem
+find_package(glm REQUIRED)
+
 set(AQUAMARINE_MINIMUM_VERSION 0.9.3)
 set(HYPRLANG_MINIMUM_VERSION 0.6.7)
 set(HYPRCURSOR_MINIMUM_VERSION 0.1.7)
@@ -423,6 +426,7 @@ target_link_libraries(
   PkgConfig::hyprcursor_dep
   PkgConfig::hyprgraphics_dep
   PkgConfig::deps
+  glm::glm
 )
 
 target_link_libraries(
