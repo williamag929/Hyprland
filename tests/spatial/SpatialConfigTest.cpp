@@ -110,7 +110,7 @@ TEST(SpatialConfig, ReloadAfterFileDeletedReturnsFalse) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DEFAULT VALUES — no $spatial section
+// DEFAULT VALUES — no spatial section
 // ══════════════════════════════════════════════════════════════════════════════
 
 TEST(SpatialConfig, DefaultsWhenSectionAbsent) {
@@ -134,7 +134,7 @@ TEST(SpatialConfig, DefaultsWhenSectionAbsent) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 static const std::string kFullSection = R"(
-$spatial {
+spatial {
     z_layers = 3
     z_layer_step = 600
     z_animation_stiffness = 150
@@ -162,7 +162,7 @@ TEST(SpatialConfig, ParsesAllValuesFromSection) {
 }
 
 TEST(SpatialConfig, ParsesPartialSection_MissingKeysKeepDefaults) {
-    TempConfigFile tmp("$spatial {\n    z_layers = 2\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = 2\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -174,7 +174,7 @@ TEST(SpatialConfig, ParsesPartialSection_MissingKeysKeepDefaults) {
 }
 
 TEST(SpatialConfig, ParsesValueWithTrailingSemicolon) {
-    TempConfigFile tmp("$spatial {\n    z_layers = 3;\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = 3;\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -183,7 +183,7 @@ TEST(SpatialConfig, ParsesValueWithTrailingSemicolon) {
 }
 
 TEST(SpatialConfig, ParsesValueWithLeadingAndTrailingWhitespace) {
-    TempConfigFile tmp("$spatial {\n    z_fov_degrees   =   90   \n}\n");
+    TempConfigFile tmp("spatial {\n    z_fov_degrees   =   90   \n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -192,7 +192,7 @@ TEST(SpatialConfig, ParsesValueWithLeadingAndTrailingWhitespace) {
 }
 
 TEST(SpatialConfig, InlineCommentsStripped) {
-    TempConfigFile tmp("$spatial {\n    z_layers = 5 # five layers\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = 5 # five layers\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -201,7 +201,7 @@ TEST(SpatialConfig, InlineCommentsStripped) {
 }
 
 TEST(SpatialConfig, FloatValue) {
-    TempConfigFile tmp("$spatial {\n    z_layer_step = 1200.5\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layer_step = 1200.5\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -210,7 +210,7 @@ TEST(SpatialConfig, FloatValue) {
 }
 
 TEST(SpatialConfig, UnknownKeysIgnored) {
-    TempConfigFile tmp("$spatial {\n    z_layers = 4\n    unknown_key = hello\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = 4\n    unknown_key = hello\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -223,7 +223,7 @@ TEST(SpatialConfig, UnknownKeysIgnored) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 TEST(SpatialConfig, MalformedIntegerKeepsDefault) {
-    TempConfigFile tmp("$spatial {\n    z_layers = auto\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = auto\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -232,7 +232,7 @@ TEST(SpatialConfig, MalformedIntegerKeepsDefault) {
 }
 
 TEST(SpatialConfig, MalformedFloatKeepsDefault) {
-    TempConfigFile tmp("$spatial {\n    z_fov_degrees = not_a_number\n}\n");
+    TempConfigFile tmp("spatial {\n    z_fov_degrees = not_a_number\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -241,7 +241,7 @@ TEST(SpatialConfig, MalformedFloatKeepsDefault) {
 }
 
 TEST(SpatialConfig, EmptyValueKeepsDefault) {
-    TempConfigFile tmp("$spatial {\n    z_layers =\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers =\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -251,7 +251,7 @@ TEST(SpatialConfig, EmptyValueKeepsDefault) {
 
 TEST(SpatialConfig, OutOfRangeFloatStringKeepsDefault) {
     // Value larger than FLT_MAX triggers std::out_of_range in stof
-    TempConfigFile tmp("$spatial {\n    z_layer_step = 9999999999999999999999999.0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layer_step = 9999999999999999999999999.0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -264,7 +264,7 @@ TEST(SpatialConfig, OutOfRangeFloatStringKeepsDefault) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 TEST(SpatialConfig, ZLayersZeroClampsToOne) {
-    TempConfigFile tmp("$spatial {\n    z_layers = 0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = 0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -273,7 +273,7 @@ TEST(SpatialConfig, ZLayersZeroClampsToOne) {
 }
 
 TEST(SpatialConfig, ZLayersNegativeClampsToOne) {
-    TempConfigFile tmp("$spatial {\n    z_layers = -3\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = -3\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -282,7 +282,7 @@ TEST(SpatialConfig, ZLayersNegativeClampsToOne) {
 }
 
 TEST(SpatialConfig, ZLayersTooLargeClampsToSixteen) {
-    TempConfigFile tmp("$spatial {\n    z_layers = 100\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layers = 100\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -291,7 +291,7 @@ TEST(SpatialConfig, ZLayersTooLargeClampsToSixteen) {
 }
 
 TEST(SpatialConfig, ZLayerStepZeroResetsToDefault) {
-    TempConfigFile tmp("$spatial {\n    z_layer_step = 0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layer_step = 0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -300,7 +300,7 @@ TEST(SpatialConfig, ZLayerStepZeroResetsToDefault) {
 }
 
 TEST(SpatialConfig, ZLayerStepNegativeResetsToDefault) {
-    TempConfigFile tmp("$spatial {\n    z_layer_step = -100\n}\n");
+    TempConfigFile tmp("spatial {\n    z_layer_step = -100\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -309,7 +309,7 @@ TEST(SpatialConfig, ZLayerStepNegativeResetsToDefault) {
 }
 
 TEST(SpatialConfig, ZAnimationStiffnessBelowOneClampsToOne) {
-    TempConfigFile tmp("$spatial {\n    z_animation_stiffness = 0.5\n}\n");
+    TempConfigFile tmp("spatial {\n    z_animation_stiffness = 0.5\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -318,7 +318,7 @@ TEST(SpatialConfig, ZAnimationStiffnessBelowOneClampsToOne) {
 }
 
 TEST(SpatialConfig, ZAnimationDampingNegativeClampsToZero) {
-    TempConfigFile tmp("$spatial {\n    z_animation_damping = -5\n}\n");
+    TempConfigFile tmp("spatial {\n    z_animation_damping = -5\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -327,7 +327,7 @@ TEST(SpatialConfig, ZAnimationDampingNegativeClampsToZero) {
 }
 
 TEST(SpatialConfig, ZFovZeroResetsToSixty) {
-    TempConfigFile tmp("$spatial {\n    z_fov_degrees = 0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_fov_degrees = 0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -336,7 +336,7 @@ TEST(SpatialConfig, ZFovZeroResetsToSixty) {
 }
 
 TEST(SpatialConfig, ZFovOneEightyResetsToSixty) {
-    TempConfigFile tmp("$spatial {\n    z_fov_degrees = 180\n}\n");
+    TempConfigFile tmp("spatial {\n    z_fov_degrees = 180\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -345,7 +345,7 @@ TEST(SpatialConfig, ZFovOneEightyResetsToSixty) {
 }
 
 TEST(SpatialConfig, ZFovAboveOneEightyResetsToSixty) {
-    TempConfigFile tmp("$spatial {\n    z_fov_degrees = 270\n}\n");
+    TempConfigFile tmp("spatial {\n    z_fov_degrees = 270\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -354,7 +354,7 @@ TEST(SpatialConfig, ZFovAboveOneEightyResetsToSixty) {
 }
 
 TEST(SpatialConfig, ZNearPlaneZeroResetsToDefault) {
-    TempConfigFile tmp("$spatial {\n    z_near_plane = 0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_near_plane = 0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -363,7 +363,7 @@ TEST(SpatialConfig, ZNearPlaneZeroResetsToDefault) {
 }
 
 TEST(SpatialConfig, ZFarPlaneEqualToNearResetsToDefault) {
-    TempConfigFile tmp("$spatial {\n    z_near_plane = 1.0\n    z_far_plane = 1.0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_near_plane = 1.0\n    z_far_plane = 1.0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -372,7 +372,7 @@ TEST(SpatialConfig, ZFarPlaneEqualToNearResetsToDefault) {
 }
 
 TEST(SpatialConfig, ZFarPlaneLessThanNearResetsToDefault) {
-    TempConfigFile tmp("$spatial {\n    z_near_plane = 5.0\n    z_far_plane = 1.0\n}\n");
+    TempConfigFile tmp("spatial {\n    z_near_plane = 5.0\n    z_far_plane = 1.0\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -381,7 +381,7 @@ TEST(SpatialConfig, ZFarPlaneLessThanNearResetsToDefault) {
 }
 
 TEST(SpatialConfig, ValidNearAndFarKept) {
-    TempConfigFile tmp("$spatial {\n    z_near_plane = 0.5\n    z_far_plane = 8000\n}\n");
+    TempConfigFile tmp("spatial {\n    z_near_plane = 0.5\n    z_far_plane = 8000\n}\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
@@ -399,7 +399,7 @@ TEST(SpatialConfig, ReloadPicksUpChangedValues) {
     char tmpl[] = "/tmp/spatial_reload2_XXXXXX";
     const int fd = ::mkstemp(tmpl);
     ASSERT_NE(fd, -1);
-    const std::string first = "$spatial {\n    z_layers = 2\n}\n";
+    const std::string first = "spatial {\n    z_layers = 2\n}\n";
     ::write(fd, first.c_str(), first.size());
     ::close(fd);
 
@@ -410,7 +410,7 @@ TEST(SpatialConfig, ReloadPicksUpChangedValues) {
     // Overwrite with new content
     const int fd2 = ::open(tmpl, O_WRONLY | O_TRUNC);
     ASSERT_NE(fd2, -1);
-    const std::string second = "$spatial {\n    z_layers = 4\n}\n";
+    const std::string second = "spatial {\n    z_layers = 4\n}\n";
     ::write(fd2, second.c_str(), second.size());
     ::close(fd2);
 
@@ -425,8 +425,8 @@ TEST(SpatialConfig, ReloadPicksUpChangedValues) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 TEST(SpatialConfig, MissingOpenBraceReturnsFalse) {
-    // "$spatial" keyword present but no opening brace
-    TempConfigFile tmp("$spatial\n    z_layers = 4\n");
+    // "spatial" keyword present but no opening brace
+    TempConfigFile tmp("spatial\n    z_layers = 4\n");
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
