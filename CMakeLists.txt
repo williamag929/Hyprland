@@ -681,15 +681,9 @@ if(BUILD_TESTING OR WITH_TESTS)
 
   gtest_discover_tests(hyprland_gtests)
 
-  # Enable coverage in main hyprland lib
-  target_compile_options(hyprland_lib PRIVATE --coverage)
-  target_link_options(hyprland_lib PRIVATE --coverage)
-  # Note: do NOT link gcov explicitly — clang --coverage links its own runtime
-
-  # Enable coverage in hyprland exe
-  target_compile_options(Hyprland PRIVATE --coverage)
-  target_link_options(Hyprland PRIVATE --coverage)
-  # Note: do NOT link gcov explicitly — clang --coverage links its own runtime
+  # Note: coverage instrumentation is intentionally only on hyprland_gtests, NOT
+  # on hyprland_lib or Hyprland. Instrumenting the main compositor binary generates
+  # .gcda files on every launch, which corrupt when sources are rebuilt.
 endif()
 
 if(BUILD_TESTING)
