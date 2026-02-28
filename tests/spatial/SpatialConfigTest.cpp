@@ -12,7 +12,8 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <unistd.h>   // mkstemp, close, unlink
+#include <fcntl.h>    // open, O_WRONLY, O_TRUNC
+#include <unistd.h>   // mkstemp, close, unlink, write
 
 #include "spatial/SpatialConfig.hpp"
 
