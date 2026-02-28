@@ -1,6 +1,7 @@
 #include "ZSpaceManager.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <pthread.h>
 #include "../desktop/view/Window.hpp"
@@ -112,6 +113,20 @@ int ZSpaceManager::getWindowLayer(void* window) const {
     return layer;
 }
 
+void ZSpaceManager::removeWindow(void* window) {
+    if (!window)
+        return;
+
+    pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
+
+    auto it = std::find_if(m_vWindowsZ.begin(), m_vWindowsZ.end(),
+                           [window](const WindowZ& wz) { return wz.pWindow == window; });
+    if (it != m_vWindowsZ.end())
+        m_vWindowsZ.erase(it);
+
+    pthread_mutex_unlock((pthread_mutex_t*)m_pMutex);
+}
+
 float ZSpaceManager::getWindowZ(void* window) const {
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
@@ -134,6 +149,10 @@ void ZSpaceManager::setWindowZPosition(void* window, float z) {
 }
 
 void ZSpaceManager::update(float deltaTime) {
+    // [SPATIAL] Clamp deltaTime to prevent spring integration instability on lag spikes
+    // or first frame. With stiffness=200 and Euler integration, dt > ~0.1s diverges.
+    deltaTime = std::clamp(deltaTime, 0.0f, 0.05f);
+
     pthread_mutex_lock((pthread_mutex_t*)m_pMutex);
 
     // Update camera Z with proper spring physics
@@ -154,6 +173,11 @@ void ZSpaceManager::update(float deltaTime) {
         
         // [SPATIAL] Sync internal state back to window properties
         if (wz.pWindow) {
+            // Guard: skip if spring produced NaN/Inf (overflow safety)
+            if (!std::isfinite(wz.fZPosition)) {
+                wz.fZPosition = wz.fZTarget;
+                wz.fZVelocity = 0.0f;
+            }
             CWindow* pWindow = reinterpret_cast<CWindow*>(wz.pWindow);
             pWindow->m_sSpatialProps.fZPosition = wz.fZPosition;
             pWindow->m_sSpatialProps.fZTarget   = wz.fZTarget;

@@ -1350,14 +1350,21 @@ void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
 
     const auto NOW = Time::steadyNow();
 
-    // [SPATIAL] Update Z-space animations each frame
+    // [SPATIAL] Update Z-space animations — guarded to run only once per frame
+    // (renderMonitor is called once per monitor; update must not compound per monitor).
     if (g_pZSpaceManager) {
         static auto lastFrameTime = NOW;
-        auto deltaTime = std::chrono::duration<float>(NOW - lastFrameTime).count();
-        g_pZSpaceManager->update(deltaTime);
-        lastFrameTime = NOW;
 
-        // [SPATIAL] Compute spatial projection matrices for this frame
+        auto        deltaTime = std::chrono::duration<float>(NOW - lastFrameTime).count();
+
+        // Only run physics when meaningful time has elapsed (>= 0.5ms).
+        // Subsequent monitor calls within the same frame tick arrive within microseconds.
+        if (deltaTime >= 0.0005f) {
+            g_pZSpaceManager->update(deltaTime);
+            lastFrameTime = NOW;
+        }
+
+        // Always recompute projection matrices (cheap, monitor-specific)
         g_pHyprOpenGL->m_renderData.spatialProjection = g_pZSpaceManager->getSpatialProjection();
         g_pHyprOpenGL->m_renderData.spatialView       = g_pZSpaceManager->getSpatialView();
     }

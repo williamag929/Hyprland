@@ -874,6 +874,11 @@ PHLMONITOR CCompositor::getMonitorFromVector(const Vector2D& point) {
 
 void CCompositor::removeWindowFromVectorSafe(PHLWINDOW pWindow) {
     if (!pWindow->m_fadingOut) {
+        // [SPATIAL] Remove window from ZSpaceManager BEFORE the destroy event
+        // to prevent dangling void* pointers and use-after-free in update().
+        if (g_pZSpaceManager)
+            g_pZSpaceManager->removeWindow(pWindow.get());
+
         Event::bus()->m_events.window.destroy.emit(pWindow);
 
         std::erase_if(m_windows, [&](SP<Desktop::View::CWindow>& el) { return el == pWindow; });

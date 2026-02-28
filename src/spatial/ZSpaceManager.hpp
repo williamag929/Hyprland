@@ -96,6 +96,11 @@ public:
     /// @param layer  Layer index (0 to Z_LAYERS_COUNT-1)
     void assignWindowToLayer(void* window, int layer);
 
+    /// @brief Remove window from Z tracking — MUST be called when a window is destroyed
+    ///        to prevent use-after-free in the update loop.
+    /// @param window Pointer to the CWindow being destroyed
+    void removeWindow(void* window);
+
     /// @brief Get layer of window
     /// @param window Pointer to CWindow
     /// @return Layer index, or -1 if not registered
