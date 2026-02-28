@@ -36,53 +36,75 @@ public:
     ~SpatialConfig() = default;
 
     // ── Carga y parsing ───────────────────────────────────────────
-    /// @brief Carga la configuración desde archivo
-    /// @param configPath Path to hyprland.conf file
-    /// @return true if loaded successfully, false on error
+    /// @brief Load configuration from file
+    /// @param configPath  Absolute path to hyprland.conf
+    /// @return true if loaded and validated successfully, false on I/O or parse error
     bool loadFromFile(const std::string& configPath);
 
-    /// @brief Reload configuration (hot-reload on file change)
+    /// @brief Reload configuration from the previously loaded path (hot-reload)
+    /// @return true if reloaded successfully; false if never loaded or file error
     bool reload();
 
-    // ── Acceso a parámetros ──────────────────────────────────────
-    /// @brief Obtiene el número de capas Z
-    int getZLayerCount() const;
+    /// @brief Check whether the configuration was loaded successfully at least once
+    /// @return true after a successful loadFromFile(), false otherwise
+    [[nodiscard]] bool isLoaded() const;
 
-    /// @brief Get distance between layers (units)
-    float getZLayerStep() const;
+    // ── Acceso a parámetros ──────────────────────────────────────
+    /// @brief Get the number of discrete Z layers
+    /// @return Layer count in [1, 16]
+    [[nodiscard]] int getZLayerCount() const;
+
+    /// @brief Get world-unit distance between adjacent layers
+    /// @return Layer step in (0, ∞]
+    [[nodiscard]] float getZLayerStep() const;
 
     /// @brief Get animation spring stiffness
-    float getZAnimationStiffness() const;
+    /// @return Stiffness constant ≥ 1.0
+    [[nodiscard]] float getZAnimationStiffness() const;
 
     /// @brief Get animation spring damping
-    float getZAnimationDamping() const;
+    /// @return Damping constant ≥ 0.0
+    [[nodiscard]] float getZAnimationDamping() const;
 
-    /// @brief Get FOV in degrees
-    float getZFOVDegrees() const;
+    /// @brief Get vertical field-of-view in degrees
+    /// @return FOV in (0.0, 180.0)
+    [[nodiscard]] float getZFOVDegrees() const;
 
-    /// @brief Get near plane distance
-    float getZNearPlane() const;
+    /// @brief Get the perspective near plane distance
+    /// @return Near plane in (0.0, far)
+    [[nodiscard]] float getZNearPlane() const;
 
-    /// @brief Get far plane distance
-    float getZFarPlane() const;
+    /// @brief Get the perspective far plane distance
+    /// @return Far plane > near
+    [[nodiscard]] float getZFarPlane() const;
 
     // ── Debug ─────────────────────────────────────────────────────
     /// @brief Print current configuration (debug)
     void debugPrint() const;
 
 private:
-    int   m_iZLayerCount           = 4;
-    float m_fZLayerStep            = 800.0f;
-    float m_fZAnimationStiffness   = 200.0f;
-    float m_fZAnimationDamping     = 20.0f;
-    float m_fZFOVDegrees           = 60.0f;
-    float m_fZNearPlane            = 0.1f;
-    float m_fZFarPlane             = 10000.0f;
+    // ── Parsed values (safe defaults used when $spatial section is absent) ──
+    int   m_iZLayerCount           = 4;        ///< Number of discrete Z layers (clamped [1,16])
+    float m_fZLayerStep            = 800.0f;   ///< World-unit distance between layers (> 0)
+    float m_fZAnimationStiffness   = 200.0f;   ///< Spring stiffness (≥ 1.0)
+    float m_fZAnimationDamping     = 20.0f;    ///< Spring damping (≥ 0.0)
+    float m_fZFOVDegrees           = 60.0f;    ///< Vertical FOV in degrees (0 < fov < 180)
+    float m_fZNearPlane            = 0.1f;     ///< Perspective near plane (> 0, < far)
+    float m_fZFarPlane             = 10000.0f; ///< Perspective far plane (> near)
 
-    std::string m_sConfigPath;
-    std::map<std::string, std::string> m_mValues;
+    bool        m_bLoaded      = false; ///< Set true after the first successful loadFromFile()
+    std::string m_sConfigPath;          ///< Path passed to the last loadFromFile() call
+    std::map<std::string, std::string> m_mValues; ///< Raw key→value pairs from the $spatial block
 
+    /// @brief Core line-by-line parser for the extracted $spatial block
+    /// @param configContent  Full text of hyprland.conf
+    /// @return true if section parsed without fatal errors; false on structural failure
     bool parseConfigSection(const std::string& configContent);
+
+    /// @brief Clamp all parsed values to safe ranges after parsing
+    /// @note  Called unconditionally at the end of parseConfigSection().
+    ///        Emits a std::cerr warning for every value that was out of range.
+    void validateAndClamp();
 };
 
 }  // namespace Spatial

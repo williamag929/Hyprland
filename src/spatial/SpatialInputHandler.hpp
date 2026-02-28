@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include "ZSpaceManager.hpp"  // for Z_LAYERS_COUNT
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SPATIAL OS: Input Handler for Z-Space Navigation
@@ -46,24 +47,47 @@ public:
     /// @brief Process "spatial_prev_layer" keybind event
     void processPrevLayerKeybind();
 
-    // ── Configuration ────────────────────────────────────────────────────
+    // ── Layer State Sync ──────────────────────────────────────────────────────
+    /// @brief Notify handler of the compositor's current layer index
+    /// @param layer  Current active layer from ZSpaceManager (0…Z_LAYERS_COUNT-1)
+    /// @note  Call this whenever ZSpaceManager::setActiveLayer() succeeds, so the
+    ///        handler's internal state stays in sync and callbacks receive accurate
+    ///        oldLayer/newLayer values.
+    void setCurrentLayer(int layer);
+
+    /// @brief Get the layer index currently tracked by the handler
+    /// @return Layer index in [0, Z_LAYERS_COUNT-1]
+    [[nodiscard]] int getCurrentLayer() const;
+
+    // ── Configuration ────────────────────────────────────────────────────────
     /// @brief Set scroll sensitivity for Z navigation
     /// @param sensitivity Scale factor (default ~1.0)
     void setScrollSensitivity(float sensitivity);
 
     /// @brief Get current scroll sensitivity
-    float getScrollSensitivity() const;
+    /// @return Sensitivity scale factor (always ≥ 0.1)
+    [[nodiscard]] float getScrollSensitivity() const;
+
+    /// @brief Set the scroll accumulator threshold for one layer step
+    /// @param threshold  Integer scroll units required per layer change (default 120)
+    void setScrollThreshold(int threshold);
+
+    /// @brief Get the current scroll threshold
+    /// @return Threshold in scroll units
+    [[nodiscard]] int getScrollThreshold() const;
 
     // ── Debug ─────────────────────────────────────────────────────
     /// @brief Print input configuration (debug)
     void debugPrint() const;
 
 private:
-    float m_fScrollSensitivity = 1.0f;
-    int   m_iScrollAccumulator = 0;
+    float m_fScrollSensitivity  = 1.0f;    ///< Multiplier applied to raw scroll delta
+    float m_fScrollAccumulator  = 0.0f;    ///< Fractional accumulator — float to avoid truncation
+    int   m_iScrollThreshold    = 120;     ///< Scroll units required to trigger one layer step
+    int   m_iCurrentLayer       = 0;       ///< Mirror of ZSpaceManager's active layer index
 
-    LayerChangeCallback m_fnLayerChangeCallback;
-    CameraZChangeCallback m_fnCameraZChangeCallback;
+    LayerChangeCallback   m_fnLayerChangeCallback;    ///< Fired on every discrete layer change
+    CameraZChangeCallback m_fnCameraZChangeCallback;  ///< Fired on continuous camera Z change
 };
 
 }  // namespace Spatial

@@ -20,19 +20,25 @@ ZSpaceManager::ZSpaceManager()
 }
 
 ZSpaceManager::~ZSpaceManager() {
-    // std::mutex is automatically destroyed
+    // std::recursive_mutex is automatically destroyed
 }
 
 void ZSpaceManager::init(int screenWidth, int screenHeight) {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     m_iScreenW = screenWidth;
     m_iScreenH = screenHeight;
 
     // Camera begins at layer 0
-    m_fCameraZ = LAYER_Z_POSITIONS[0];
-    m_fCameraZTarget = m_fCameraZ;
+    m_fCameraZ        = LAYER_Z_POSITIONS[0];
+    m_fCameraZTarget  = m_fCameraZ;
+}
+
+bool ZSpaceManager::isInitialized() const {
+    return (m_iScreenW > 0 && m_iScreenH > 0);
 }
 
 bool ZSpaceManager::nextLayer() {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     if (m_iActiveLayer >= Z_LAYERS_COUNT - 1) {
         return false;
     }
@@ -40,6 +46,7 @@ bool ZSpaceManager::nextLayer() {
 }
 
 bool ZSpaceManager::prevLayer() {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     if (m_iActiveLayer <= 0) {
         return false;
     }
@@ -47,6 +54,7 @@ bool ZSpaceManager::prevLayer() {
 }
 
 bool ZSpaceManager::setActiveLayer(int layer) {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     if (layer < 0 || layer >= Z_LAYERS_COUNT) {
         return false;
     }
@@ -57,10 +65,12 @@ bool ZSpaceManager::setActiveLayer(int layer) {
 }
 
 int ZSpaceManager::getActiveLayer() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     return m_iActiveLayer;
 }
 
 float ZSpaceManager::getCameraZ() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     return m_fCameraZ;
 }
 
@@ -69,7 +79,7 @@ void ZSpaceManager::assignWindowToLayer(void* window, int layer) {
         return;
     }
 
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     WindowZ* wz = findWindow(window);
     if (!wz) {
@@ -91,7 +101,7 @@ void ZSpaceManager::assignWindowToLayer(void* window, int layer) {
 }
 
 int ZSpaceManager::getWindowLayer(void* window) const {
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     const WindowZ* wz = findWindow(window);
     return (wz ? wz->iZLayer : -1);
@@ -101,7 +111,7 @@ void ZSpaceManager::removeWindow(void* window) {
     if (!window)
         return;
 
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     auto it = std::find_if(m_vWindowsZ.begin(), m_vWindowsZ.end(),
                            [window](const WindowZ& wz) { return wz.pWindow == window; });
@@ -110,14 +120,14 @@ void ZSpaceManager::removeWindow(void* window) {
 }
 
 float ZSpaceManager::getWindowZ(void* window) const {
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     const WindowZ* wz = findWindow(window);
     return (wz ? wz->fZPosition : 0.0f);
 }
 
 void ZSpaceManager::setWindowZPosition(void* window, float z) {
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     WindowZ* wz = findWindow(window);
     if (wz) {
@@ -130,7 +140,7 @@ void ZSpaceManager::update(float deltaTime) {
     // or first frame. With stiffness=200 and Euler integration, dt > ~0.1s diverges.
     deltaTime = std::clamp(deltaTime, 0.0f, 0.05f);
 
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     // Update camera Z with proper spring physics
     {
@@ -170,25 +180,27 @@ void ZSpaceManager::update(float deltaTime) {
 }
 
 float ZSpaceManager::getWindowZTarget(void* window) const {
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     const WindowZ* wz = findWindow(window);
     return (wz ? wz->fZTarget : 0.0f);
 }
 
 float ZSpaceManager::getWindowZVelocity(void* window) const {
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     const WindowZ* wz = findWindow(window);
     return (wz ? wz->fZVelocity : 0.0f);
 }
 
 glm::mat4 ZSpaceManager::getSpatialProjection() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     float aspect = (float)m_iScreenW / (float)m_iScreenH;
     return glm::perspective(glm::radians(Z_FOV_DEGREES), aspect, Z_NEAR, Z_FAR);
 }
 
 glm::mat4 ZSpaceManager::getSpatialView() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     float camZ = m_fCameraZ;
     return glm::lookAt(
         glm::vec3(m_iScreenW / 2.0f, m_iScreenH / 2.0f, camZ + 1200.0f),  // eye
@@ -198,7 +210,7 @@ glm::mat4 ZSpaceManager::getSpatialView() const {
 }
 
 glm::mat4 ZSpaceManager::getWindowTransform(void* window) const {
-    std::lock_guard<std::mutex> lock(m_oMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
     const WindowZ* wz = findWindow(window);
     glm::mat4 model = glm::mat4(1.0f);
@@ -210,6 +222,57 @@ glm::mat4 ZSpaceManager::getWindowTransform(void* window) const {
     }
 
     return model;
+}
+
+void ZSpaceManager::pinWindow(void* window, bool pinned) {
+    if (!window)
+        return;
+
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+
+    WindowZ* wz = findWindow(window);
+    if (wz) {
+        wz->bZPinned = pinned;
+        CWindow* pWindow = reinterpret_cast<CWindow*>(window);
+        pWindow->m_sSpatialProps.bZPinned = pinned;
+    }
+}
+
+bool ZSpaceManager::isPinned(void* window) const {
+    if (!window)
+        return false;
+
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+
+    const WindowZ* wz = findWindow(window);
+    return (wz ? wz->bZPinned : false);
+}
+
+std::vector<void*> ZSpaceManager::getSortedWindowsForRender() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+
+    // Copy current list and sort back-to-front (most negative Z first)
+    std::vector<const WindowZ*> sorted;
+    sorted.reserve(m_vWindowsZ.size());
+    for (const auto& wz : m_vWindowsZ)
+        sorted.push_back(&wz);
+
+    std::sort(sorted.begin(), sorted.end(),
+              [](const WindowZ* a, const WindowZ* b) {
+                  return a->fZPosition < b->fZPosition;  // deepest first
+              });
+
+    std::vector<void*> result;
+    result.reserve(sorted.size());
+    for (const auto* wz : sorted)
+        result.push_back(wz->pWindow);
+
+    return result;
+}
+
+int ZSpaceManager::getWindowCount() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+    return static_cast<int>(m_vWindowsZ.size());
 }
 
 float ZSpaceManager::getWindowOpacity(void* window) const {
@@ -229,8 +292,19 @@ float ZSpaceManager::getWindowBlurRadius(void* window) const {
 }
 
 void ZSpaceManager::debugPrint() const {
-    std::cout << "[ZSpaceManager] Active layer: " << m_iActiveLayer
-              << ", Camera Z: " << m_fCameraZ << std::endl;
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+    std::cout << "[ZSpaceManager] active_layer=" << m_iActiveLayer
+              << "  camera_z=" << m_fCameraZ
+              << "  windows=" << m_vWindowsZ.size() << "\n";
+    for (const auto& wz : m_vWindowsZ) {
+        std::cout << "  win=" << wz.pWindow
+                  << "  layer=" << wz.iZLayer
+                  << "  z=" << wz.fZPosition
+                  << "  target=" << wz.fZTarget
+                  << "  vel=" << wz.fZVelocity
+                  << (wz.bZPinned ? "  [PINNED]" : "") << "\n";
+    }
+    std::cout.flush();
 }
 
 ZSpaceManager::WindowZ* ZSpaceManager::findWindow(void* window) {
