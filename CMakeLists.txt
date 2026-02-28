@@ -130,15 +130,26 @@ find_package(Threads REQUIRED)
 set(GLES_VERSION "GLES3")
 find_package(OpenGL REQUIRED COMPONENTS ${GLES_VERSION})
 
-# glm — header-only math library used by the spatial Z-layer subsystem
-# Try cmake config first; fall back to pkg-config for distros that don't ship glmConfig.cmake
-find_package(glm QUIET)
-if(NOT glm_FOUND)
-  pkg_check_modules(glm_dep REQUIRED IMPORTED_TARGET glm)
-  message(STATUS "glm found via pkg-config")
-else()
-  message(STATUS "glm found via cmake config")
+# glm — header-only math library used by the spatial Z-layer subsystem.
+# glm is header-only and most distro packages don't ship a .pc or Config.cmake,
+# so we locate the headers directly with find_path.
+find_path(GLM_INCLUDE_DIR glm/glm.hpp
+  PATHS
+    /usr/include
+    /usr/local/include
+    /usr/include/glm
+    /opt/local/include
+)
+if(NOT GLM_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "glm headers not found. Install glm:\n"
+    "  Arch:   sudo pacman -S glm\n"
+    "  Fedora: sudo dnf install glm-devel\n"
+    "  Ubuntu: sudo apt install libglm-dev")
 endif()
+message(STATUS "Found glm headers at ${GLM_INCLUDE_DIR}")
+add_library(glm_iface INTERFACE)
+target_include_directories(glm_iface INTERFACE ${GLM_INCLUDE_DIR})
 
 set(AQUAMARINE_MINIMUM_VERSION 0.9.3)
 set(HYPRLANG_MINIMUM_VERSION 0.6.7)
@@ -433,12 +444,8 @@ target_link_libraries(
   PkgConfig::hyprcursor_dep
   PkgConfig::hyprgraphics_dep
   PkgConfig::deps
+  glm_iface
 )
-if(glm_FOUND)
-  target_link_libraries(hyprland_lib PUBLIC glm::glm)
-else()
-  target_link_libraries(hyprland_lib PUBLIC PkgConfig::glm_dep)
-endif()
 
 target_link_libraries(
   Hyprland
