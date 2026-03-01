@@ -1539,6 +1539,11 @@ void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
         // Always recompute projection matrices (cheap, monitor-specific)
         g_pHyprOpenGL->m_renderData.spatialProjection = g_pZSpaceManager->getSpatialProjection();
         g_pHyprOpenGL->m_renderData.spatialView       = g_pZSpaceManager->getSpatialView();
+        // [SPATIAL] TASK-SH-301: propagate AR passthrough state to render data
+        if (g_pSpatialInputHandler) {
+            g_pHyprOpenGL->m_renderData.arPassthrough = g_pSpatialInputHandler->isArPassthroughEnabled();
+            g_pHyprOpenGL->m_renderData.arAlpha       = g_pSpatialInputHandler->getArAlpha();
+        }
     }
 
     // check the damage

@@ -143,6 +143,12 @@ bool SpatialConfig::parseConfigSection(const std::string& configContent) {
             } else if (key == "enabled") {
                 // Accept "true"/"1" as enabled, anything else as disabled
                 m_bEnabled = (value == "true" || value == "1");
+            } else if (key == "ar_passthrough") {
+                // [SPATIAL] TASK-SH-301: AR passthrough blend — off by default
+                m_bArPassthroughEnabled = (value == "true" || value == "1");
+            } else if (key == "ar_alpha") {
+                // [SPATIAL] TASK-SH-301: global AR blend weight
+                m_fArAlpha = std::stof(value);
             }
         } catch (const std::invalid_argument& e) {
             std::cerr << "[SpatialConfig] Invalid value for '" << key
@@ -243,6 +249,15 @@ bool SpatialConfig::isEnabled() const {
     return m_bEnabled;
 }
 
+bool SpatialConfig::isArPassthroughEnabled() const {
+    return m_bArPassthroughEnabled;
+}
+
+float SpatialConfig::getArAlpha() const {
+    // Clamp on read in case a raw stof produced a value outside [0,1]
+    return std::clamp(m_fArAlpha, 0.0f, 1.0f);
+}
+
 void SpatialConfig::debugPrint() const {
     std::cout << "[SpatialConfig] loaded=" << (m_bLoaded ? "yes" : "no") << "\n"
               << "  enabled:               " << (m_bEnabled ? "true" : "false") << "\n"
@@ -252,7 +267,9 @@ void SpatialConfig::debugPrint() const {
               << "  z_animation_damping:   " << m_fZAnimationDamping << "\n"
               << "  z_fov_degrees:         " << m_fZFOVDegrees << "\n"
               << "  z_near_plane:          " << m_fZNearPlane << "\n"
-              << "  z_far_plane:           " << m_fZFarPlane << "\n";
+              << "  z_far_plane:           " << m_fZFarPlane << "\n"
+              << "  ar_passthrough:        " << (m_bArPassthroughEnabled ? "true" : "false") << "\n"
+              << "  ar_alpha:              " << m_fArAlpha << "\n";
     std::cout.flush();
 }
 

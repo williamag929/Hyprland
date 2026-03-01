@@ -1,43 +1,55 @@
-// SPATIAL OS: Passthrough AR Shader
-// Autor: Spatial Compositor Team
-// Versión: 0.1.0
+// ════════════════════════════════════════════════════════════════════════════
+// SPATIAL OS — AR Passthrough Blend Shader
+// TASK-SH-301 | src/render/shaders/passthrough_ar.frag
 //
-// Propósito:
-// Shader para mezcla de AR passthrough en dispositivos como Meta Quest 3.
-// Combina la imagen capturada por las cámaras del headset con las ventanas
-// renderizadas del compositor, permitiendo AR semi-transparente.
+// Composites the Hyprland window stack over a camera passthrough background.
 //
-// Esta es una versión placeholder para desarrollo futuro. Actualmente los
-// headsets envían la imagen de passthrough a través de OpenXR directamente.
+// Modes:
+//   u_arPassthrough == 0  desktop mode: no-op; returns compositor color unchanged
+//                         (zero overhead when AR hardware is absent or disabled)
+//   u_arPassthrough == 1  AR mode: alpha-blend compositor over camera feed
 //
-// Uniforms (futuro):
-//   u_passthroughTex (sampler2D): textura capturada por cámaras del headset
-//   u_blendAlpha (float)         : factor de mezcla (0 = solo compositor, 1 = solo AR)
-//   u_colorCorrection (mat3)     : matriz de corrección de color
+// Uniforms:
+//   u_tex           (sampler2D) : compositor render texture (window stack output)
+//   u_arCameraTex   (sampler2D) : camera passthrough feed supplied by XR runtime
+//   u_arPassthrough (int)       : 0 = desktop, 1 = AR passthrough active
+//   u_arAlpha       (float)     : global blend weight [0.0 = full camera,
+//                                 1.0 = full compositor];  default 1.0
+//
+// Blend equation:
+//   alpha = compositor.a * u_arAlpha
+//   out   = mix(camera, compositor, alpha)
+//
+// When compositor pixels are fully transparent the camera shows through,
+// making windows appear to float over the real world in passthrough AR.
+// ════════════════════════════════════════════════════════════════════════════
 
 #version 430 core
 
-layout(location = 0) in vec2 v_texCoord;
-layout(location = 1) in vec4 v_color;
+uniform sampler2D u_tex;            // compositor window stack render texture
+uniform sampler2D u_arCameraTex;    // XR runtime camera passthrough texture
+uniform int       u_arPassthrough;  // 0 = desktop, 1 = AR passthrough active
+uniform float     u_arAlpha;        // global blend weight [0.0 – 1.0]
 
-uniform sampler2D tex;                // Textura renderizada del compositor
-uniform sampler2D u_passthroughTex;   // Imagen de passthrough (futuro)
-uniform float u_blendAlpha;           // Factor de mezcla [0, 1]
-uniform mat3 u_colorCorrection;       // Corrección de color del headset
-
+in  vec2 v_texcoord;
 out vec4 fragColor;
 
 void main() {
-    // Versión placeholder: solo renderizar la textura sin modificación
-    // En una implementación real, aquí se mezclaría con la imagen de passthrough
-    // del headset (Quest 3, Monado, etc.)
+    vec4 compositor = texture(u_tex, v_texcoord);
 
-    vec4 compositorColor = texture(tex, v_texCoord);
+    // Fast path: AR disabled — return compositor output unchanged.
+    // Uniform-driven branch will be statically resolved by most drivers.
+    if (u_arPassthrough == 0) {
+        fragColor = compositor;
+        return;
+    }
 
-    // TODO: Implementar cuando OpenXR passthrough esté integrado
-    // vec4 passthroughColor = texture(u_passthroughTex, v_texCoord);
-    // vec4 blended = mix(compositorColor, passthroughColor, u_blendAlpha);
-    // fragColor = vec4(u_colorCorrection * blended.rgb, blended.a);
+    vec4 camera = texture(u_arCameraTex, v_texcoord);
 
-    fragColor = compositorColor * v_color;
+    // Alpha-over blend:
+    //   compositor alpha=1 → window occludes camera
+    //   compositor alpha=0 → camera shows through (AR see-through effect)
+    //   u_arAlpha provides a global dimming knob for fade-in / fade-out
+    float alpha = compositor.a * clamp(u_arAlpha, 0.0, 1.0);
+    fragColor   = mix(camera, compositor, alpha);
 }

@@ -67,6 +67,26 @@ public:
     /// @brief Get whether spatial navigation is currently active
     /// @return true if enabled
     [[nodiscard]] bool isEnabled() const;
+
+    // ── AR Passthrough ───────────────────────────────────────────────────────
+
+    /// @brief Enable or disable AR passthrough compositing
+    /// @param enabled  true = compositor blends over camera feed (AR mode)
+    ///                 false = standard desktop mode (default)
+    /// @note  Propagated from SpatialConfig::isArPassthroughEnabled() at boot
+    void setArPassthrough(bool enabled);
+
+    /// @brief Get whether AR passthrough compositing is active
+    /// @return true if ar_passthrough = 1 was set in the spatial config
+    [[nodiscard]] bool isArPassthroughEnabled() const;
+
+    /// @brief Set the global AR blend weight
+    /// @param alpha  Blend factor in [0.0 – 1.0]:  0 = full camera, 1 = full compositor
+    void setArAlpha(float alpha);
+
+    /// @brief Get the global AR blend weight
+    /// @return Value in [0.0, 1.0] (clamped on read)
+    [[nodiscard]] float getArAlpha() const;
     /// @brief Set scroll sensitivity for Z navigation
     /// @param sensitivity Scale factor (default ~1.0)
     void setScrollSensitivity(float sensitivity);
@@ -88,11 +108,13 @@ public:
     void debugPrint() const;
 
 private:
-    float m_fScrollSensitivity  = 1.0f;    ///< Multiplier applied to raw scroll delta
-    float m_fScrollAccumulator  = 0.0f;    ///< Fractional accumulator — float to avoid truncation
-    int   m_iScrollThreshold    = 120;     ///< Scroll units required to trigger one layer step
-    int   m_iCurrentLayer       = 0;       ///< Mirror of ZSpaceManager's active layer index
-    bool  m_bEnabled            = true;    ///< When false, all Z navigation inputs are silently ignored
+    float m_fScrollSensitivity     = 1.0f;    ///< Multiplier applied to raw scroll delta
+    float m_fScrollAccumulator     = 0.0f;    ///< Fractional accumulator — float to avoid truncation
+    int   m_iScrollThreshold       = 120;     ///< Scroll units required to trigger one layer step
+    int   m_iCurrentLayer          = 0;       ///< Mirror of ZSpaceManager's active layer index
+    bool  m_bEnabled               = true;    ///< When false, all Z navigation inputs are silently ignored
+    bool  m_bArPassthroughEnabled  = false;   ///< [SPATIAL] TASK-SH-301: AR passthrough blend active
+    float m_fArAlpha               = 1.0f;    ///< [SPATIAL] TASK-SH-301: global AR blend weight [0–1]
 
     LayerChangeCallback   m_fnLayerChangeCallback;    ///< Fired on every discrete layer change
     CameraZChangeCallback m_fnCameraZChangeCallback;  ///< Fired on continuous camera Z change

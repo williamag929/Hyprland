@@ -677,6 +677,11 @@ void CCompositor::initManagers(eManagersInitStage stage) {
                     g_pSpatialInputHandler->setEnabled(spatialBootCfg.isEnabled());
                     if (!spatialBootCfg.isEnabled())
                         Log::logger->log(Log::DEBUG, "[SPATIAL] Spatial navigation DISABLED via config (enabled = false)");
+                    // [SPATIAL] TASK-SH-301: propagate AR passthrough config to input handler
+                    g_pSpatialInputHandler->setArPassthrough(spatialBootCfg.isArPassthroughEnabled());
+                    g_pSpatialInputHandler->setArAlpha(spatialBootCfg.getArAlpha());
+                    if (spatialBootCfg.isArPassthroughEnabled())
+                        Log::logger->log(Log::DEBUG, "[SPATIAL] AR passthrough enabled (ar_passthrough = 1)");
                 }
             }
 

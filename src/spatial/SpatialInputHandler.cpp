@@ -106,6 +106,24 @@ bool SpatialInputHandler::isEnabled() const {
     return m_bEnabled;
 }
 
+// ── AR Passthrough ───────────────────────────────────────────────────────────
+
+void SpatialInputHandler::setArPassthrough(bool enabled) {
+    m_bArPassthroughEnabled = enabled;
+}
+
+bool SpatialInputHandler::isArPassthroughEnabled() const {
+    return m_bArPassthroughEnabled;
+}
+
+void SpatialInputHandler::setArAlpha(float alpha) {
+    m_fArAlpha = std::clamp(alpha, 0.0f, 1.0f);
+}
+
+float SpatialInputHandler::getArAlpha() const {
+    return m_fArAlpha;
+}
+
 void SpatialInputHandler::debugPrint() const {
     std::cout << "[SpatialInputHandler]"
               << "  current_layer=" << m_iCurrentLayer

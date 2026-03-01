@@ -82,6 +82,15 @@ public:
     /// @return true if spatial navigation is active (default), false if disabled via config
     [[nodiscard]] bool isEnabled() const;
 
+    /// @brief Get whether AR passthrough compositing is enabled
+    /// @return true if ar_passthrough = 1 in the spatial config section
+    /// @note Defaults to false — AR hardware is not required to run the compositor
+    [[nodiscard]] bool isArPassthroughEnabled() const;
+
+    /// @brief Get the global AR blend weight
+    /// @return Value in [0.0, 1.0]: 0=full camera, 1=full compositor (default 1.0)
+    [[nodiscard]] float getArAlpha() const;
+
     // ── Debug ─────────────────────────────────────────────────────
     /// @brief Print current configuration (debug)
     void debugPrint() const;
@@ -96,7 +105,9 @@ private:
     float m_fZNearPlane            = 0.1f;     ///< Perspective near plane (> 0, < far)
     float m_fZFarPlane             = 10000.0f; ///< Perspective far plane (> near)
 
-    bool        m_bEnabled     = true;  ///< false when config sets "enabled = false" in $spatial block
+    bool        m_bEnabled              = true;  ///< false when config sets "enabled = false" in spatial block
+    bool        m_bArPassthroughEnabled  = false; ///< [SPATIAL] TASK-SH-301: true when ar_passthrough = 1
+    float       m_fArAlpha               = 1.0f;  ///< [SPATIAL] TASK-SH-301: global AR blend [0.0–1.0]
     bool        m_bLoaded      = false; ///< Set true after the first successful loadFromFile()
     std::string m_sConfigPath;          ///< Path passed to the last loadFromFile() call
     std::map<std::string, std::string> m_mValues; ///< Raw key→value pairs from the $spatial block

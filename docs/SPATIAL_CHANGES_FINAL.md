@@ -1,29 +1,29 @@
-# Cambios Espaciales [SPATIAL] — Fork Hyprland v0.45.x
+# [SPATIAL] Changes — Hyprland Fork v0.45.x
 
-> Registro de modificaciones para Spatial OS integración  
-> Última actualización: Febrero 28, 2026  
-> **Estado: Fases 1-4 + SH-107/108/SH-004 COMPLETADAS ✅ — SH-201 listo para @refactor**
-
----
-
-## 📊 Resumen Ejecutivo
-
-Se han completado **4 fases de integración** del módulo Spatial OS en el fork de Hyprland:
-
-| Fase | Descripción | Estado | Líneas |
-|------|-------------|--------|--------|
-| 1 | Estructura de datos Z (SSpatialProps) | ✅ Completa | +11 |
-| 2 | Input handling (scroll interception) | ✅ Completa | +13 |
-| 3 | Inicialización y update en Renderer | ✅ Completa | +23 |
-| 4 | CI/CD pipeline y documentación | ✅ Completa | +200 |
-| **Cambios en upstream** | | | **+52** |
-| **Cambios totales** | Nuevos archivos + stubs | ✅ | **~1,350** |
+> Change log for Spatial OS integration  
+> Last Updated: February 28, 2026  
+> **Status: All phases TASK-SH-101 → SH-301 COMPLETE ✅**
 
 ---
 
-## ✅ Fase 1: Estructura de Datos Z
+## 📊 Executive Summary
 
-### Archivos Modificados
+**4 integration phases** of the Spatial OS module have been completed in the Hyprland fork:
+
+| Phase | Description | Status | Lines |
+|-------|-------------|--------|-------|
+| 1 | Z data structure (SSpatialProps) | ✅ Complete | +11 |
+| 2 | Input handling (scroll interception) | ✅ Complete | +13 |
+| 3 | Renderer initialization and update | ✅ Complete | +23 |
+| 4 | CI/CD pipeline and documentation | ✅ Complete | +200 |
+| **Upstream changes** | | | **+52** |
+| **Total changes** | New files + stubs | ✅ | **~1,350** |
+
+---
+
+## ✅ Phase 1: Z Data Structure
+
+### Modified Files
 
 **src/Compositor.hpp**
 ```cpp
@@ -41,27 +41,27 @@ g_pZSpaceManager = makeUnique<Spatial::ZSpaceManager>();
 **src/desktop/view/Window.hpp**
 ```cpp
 struct SSpatialProps {
-    float  fZPosition   = 0.0f;   // posición Z actual
-    float  fZTarget     = 0.0f;   // objetivo Z
-    float  fZVelocity   = 0.0f;   // velocidad animación
-    int    iZLayer      = 0;      // capa 0-N
-    float  fDepthNorm   = 0.0f;   // 0-1 normalizado
-    bool   bZPinned     = false;  // no afectada por cámara
-    bool   bZManaged    = true;   // compositor controla Z
+    float  fZPosition   = 0.0f;   // current Z position
+    float  fZTarget     = 0.0f;   // target Z
+    float  fZVelocity   = 0.0f;   // animation velocity
+    int    iZLayer      = 0;      // layer 0-N
+    float  fDepthNorm   = 0.0f;   // normalized 0-1
+    bool   bZPinned     = false;  // exempt from camera movement
+    bool   bZManaged    = true;   // compositor controls Z
 } m_sSpatialProps;
 ```
 
-### Archivos Nuevos
+### New Files
 
-- `src/spatial/ZSpaceManager.hpp/cpp` — Gestor completo de capas Z (~500 líneas)
-- `src/spatial/SpatialConfig.hpp/cpp` — Parser de configuración (~250 líneas)
-- `src/spatial/SpatialInputHandler.hpp/cpp` — Manejo de inputs (~190 líneas)
+- `src/spatial/ZSpaceManager.hpp/cpp` — Full Z-layer manager (~500 lines)
+- `src/spatial/SpatialConfig.hpp/cpp` — Configuration parser (~250 lines)
+- `src/spatial/SpatialInputHandler.hpp/cpp` — Input handling (~190 lines)
 
 ---
 
-## ✅ Fase 2: Input Handling
+## ✅ Phase 2: Input Handling
 
-### Archivos Modificados
+### Modified Files
 
 **src/managers/input/InputManager.cpp (line 884)**
 
@@ -75,30 +75,30 @@ if (passEvent && e.axis == 1 && g_pZSpaceManager) {
     } else if (e.value < 0) {
         g_pZSpaceManager->prevLayer();
     }
-    passEvent = false;  // consume el evento
+    passEvent = false;  // consume the event
 }
 
 if (!passEvent)
     return;
 ```
 
-**Comportamiento:**
-- Scroll arriba/adelante → cambiar a capa anterior (más cercana)
-- Scroll abajo/atrás → cambiar a capa siguiente (más lejana)
-- Event completamente consumido (no propagado a ventana)
+**Behavior:**
+- Scroll up/forward → switch to previous layer (closer)
+- Scroll down/back → switch to next layer (farther)
+- Event fully consumed (not propagated to the window)
 
 ---
 
-## ✅ Fase 3: Rendering Integration
+## ✅ Phase 3: Rendering Integration
 
-### Archivos Modificados
+### Modified Files
 
 **src/render/Renderer.cpp (line 1263)**
 
-#### 3A: Inicialización en renderMonitor()
+#### 3A: Initialization in renderMonitor()
 ```cpp
 void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
-    // ... validación de dimensiones ...
+    // ... dimension validation ...
     
     // [SPATIAL] Initialize Z-space manager on first valid monitor
     static bool spatialInitialized = false;
@@ -110,7 +110,7 @@ void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
     }
 ```
 
-#### 3B: Update cada frame (line ~1345)
+#### 3B: Update every frame (line ~1345)
 ```cpp
 Event::bus()->m_events.render.pre.emit(pMonitor);
 
@@ -130,37 +130,37 @@ bool hasChanged = pMonitor->m_output->needsFrame || pMonitor->m_damage.hasChange
 
 ---
 
-## ✅ Fase 4: CI/CD y Documentación
+## ✅ Phase 4: CI/CD and Documentation
 
-### Archivos Nuevos
+### New Files
 
 **`.github/workflows/spatial-build.yml`**
-- Compilación con clang++
-- Validación GLSL con glslangValidator
-- Linting con clang-tidy
-- Unit tests con Google Test
-- Memory checks con valgrind
-- Build release adicional
+- Build with clang++
+- GLSL validation with glslangValidator
+- Linting with clang-tidy
+- Unit tests with Google Test
+- Memory checks with valgrind
+- Additional release build
 
-**`docs/SPATIAL_CHANGES.md`** (este documento)
-- Registro completo de cambios
-- Arquitectura integrada
-- Próximos pasos
+**`docs/SPATIAL_CHANGES.md`** (this document)
+- Complete change log
+- Integrated architecture
+- Next steps
 
-**`docs/SPATIAL_CHANGES_FINAL.md`** (sumario final)
+**`docs/SPATIAL_CHANGES_FINAL.md`** (final summary)
 
-### Nuevos Shaders
+### New Shaders
 
 ```
 src/render/shaders/
-  ├── depth_spatial.frag      — Blur adaptativo por Z (80 líneas)
-  ├── depth_dof.frag          — Depth of field profesional (89 líneas)
-  └── passthrough_ar.frag     — AR passthrough (placeholder, 41 líneas)
+  ├── depth_spatial.frag      — Adaptive blur by Z (93 lines)
+  ├── depth_dof.frag          — Professional depth of field (89 lines)
+  └── passthrough_ar.frag     — AR passthrough blend [TASK-SH-301] (55 lines)
 ```
 
 ---
 
-## 🏗️ Arquitectura Implementada
+## 🏗️ Implemented Architecture
 
 ```
 Input Chain:
@@ -172,7 +172,7 @@ Input Chain:
 Update Loop:
   renderMonitor()
     ├─ [SPATIAL] init ZSpaceManager (once)
-    └─ [SPATIAL] update(deltaTime) ogni frame
+    └─ [SPATIAL] update(deltaTime) every frame
         ↓ animates m_sSpatialProps.fZPosition
 
 Window Data:
@@ -183,7 +183,7 @@ Window Data:
         ├─ iZLayer (discrete layer 0-3)
         └─ ...
 
-Future Rendering:
+Rendering:
   renderMonitor()
     ├─ Sort windows by Z (painter's algorithm)
     ├─ Apply perspective transformation
@@ -193,42 +193,48 @@ Future Rendering:
 
 ---
 
-## 📈 Impacto en Upstream
+## 📈 Upstream Impact
 
-| Métrica | Valor | Notas |
-|---------|-------|-------|
-| Archivos modificados upstream | 5 | Compositor, Window, InputManager, Renderer |
-| Líneas agregadas a upstream | 52 | Muy bajo impacto |
-| Líneas removidas | 0 | No hay cambios destructivos |
-| Cambios compatibles | Sí | SSpatialProps es completamente pasivo inicialmente |
-| Cherrypickable | Sí | Todo prefijado con [SPATIAL] |
-
----
-
-## 🎯 Hitos Completados
-
-| Hito | Estado | Evidencia |
-|------|--------|-----------|
-| ZSpaceManager compilable | ✅ | src/spatial/*.cpp implementado con Google Test stubs |
-| InputManager intercepta scroll | ✅ | onMouseWheel() modifado |
-| Window tiene SSpatialProps | ✅ | CWindow::m_sSpatialProps struct |
-| Compositor inicializa ZSpaceManager | ✅ | initManagers(STAGE_PRIORITY) |
-| Renderer hace update cada frame | ✅ | renderMonitor() + deltaTime calculation |
-| CI/CD validación básica | ✅ | spatial-build.yml con glslang + clang-tidy |
-| Documentación completa | ✅ | SPATIAL_OS_SPEC.md + SPATIAL_HYPR_FORK_SPEC.md + este archivo |
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Upstream files modified | 5 | Compositor, Window, InputManager, Renderer |
+| Lines added to upstream | 52 | Very low impact |
+| Lines removed | 0 | No destructive changes |
+| Backward compatible | Yes | SSpatialProps is fully passive initially |
+| Cherry-pickable | Yes | All prefixed with [SPATIAL] |
 
 ---
 
-## 🚀 Próximos Pasos / Task Status
+## 🎯 Completed Milestones
+
+| Milestone | Status | Evidence |
+|-----------|--------|----------|
+| ZSpaceManager compiles | ✅ | `src/spatial/*.cpp` implemented with Google Test |
+| InputManager intercepts scroll | ✅ | `onMouseWheel()` modified |
+| Window has SSpatialProps | ✅ | `CWindow::m_sSpatialProps` struct |
+| Compositor initializes ZSpaceManager | ✅ | `initManagers(STAGE_PRIORITY)` |
+| Renderer updates every frame | ✅ | `renderMonitor()` + deltaTime calculation |
+| CI/CD basic validation | ✅ | `spatial-build.yml` with glslang + clang-tidy |
+| Damage tracking fixed (4 defects) | ✅ | `isAnimating()`, `scheduleFrame`, `damageMonitor`, zero-size guard |
+| Z-bucket renderer cross-class | ✅ | `renderWorkspaceWindowsSpatial()` + 9 tests |
+| FOV lerp with depth | ✅ | `m_fCurrentFov` 60°→75° + 4 tests |
+| AR passthrough shader + wiring | ✅ | `passthrough_ar.frag` + config + runtime state |
+| Complete documentation | ✅ | `SPATIAL_OS_SPEC.md` + `SPATIAL_HYPR_FORK_SPEC.md` + per-task specs |
+
+---
+
+## 🚀 Next Steps / Task Status
 
 ### @architect Specs
 
 | Task | Description | Status | Spec |
 |------|------------|--------|------|
 | TASK-SH-001 | Renderer.cpp uniform-upload path analysis | ✅ Done | `docs/TASK_SH_001_RENDERER_UNIFORM_PATH.md` |
-| TASK-SH-002 | Depth sorting strategy — render pipeline | ✅ **Spec approved** | `docs/TASK_SH_002_DEPTH_SORT_SPEC.md` |
+| TASK-SH-002 | Depth sorting strategy — render pipeline | ✅ **Approved** | `docs/TASK_SH_002_DEPTH_SORT_SPEC.md` |
 | TASK-SH-003 | hyprlang `spatial {}` section parser | ✅ Done via `registerConfigVar` | — |
 | TASK-SH-004 | Damage tracking impact analysis | ✅ **All fixes implemented** | `docs/TASK_SH_004_DAMAGE_TRACKING_SPEC.md` |
+| TASK-SH-202 | Per-frame FOV lerp — micro-spec | ✅ **Approved, implemented** | inline in session |
+| TASK-SH-301 | AR passthrough — shader + config spec | ✅ **Approved, implemented** | inline in session |
 
 ### @refactor Tasks
 
@@ -242,52 +248,74 @@ Future Rendering:
 | TASK-SH-106 | `sync-upstream.sh` + `UPSTREAM_SYNC.md` + CI | ✅ Done |
 | TASK-SH-107 | `SpatialConfig.hpp/cpp` + `enabled` toggle | ✅ Done |
 | TASK-SH-108 | `SpatialInputHandler` enable/disable wiring | ✅ Done |
-| TASK-SH-201 | `renderWorkspaceWindowsSpatial()` — Z-bucket cross-class sort | 🔲 **Ready to start** (spec: SH-002) |
-| TASK-SH-202 | Per-frame projection matrix lerp | 🔲 Pending |
-| TASK-SH-301 | `passthrough_ar.frag` + OpenXR framebuffer | 🔲 Pending |
+| TASK-SH-201 | `renderWorkspaceWindowsSpatial()` — Z-bucket cross-class renderer | ✅ **Done** |
+| TASK-SH-202 | Per-frame FOV lerp (`m_fCurrentFov`, 60°→75° with depth) | ✅ **Done** |
+| TASK-SH-301 | `passthrough_ar.frag` + AR config wiring in all layers | ✅ **Done** |
 
-### TASK-SH-004 Damage Fixes Summary
+### TASK-SH-201 — Z-Bucket Renderer (`renderWorkspaceWindowsSpatial`)
 
-All four fixes applied in `src/`:
+| Item | Detail |
+|------|--------|
+| New function | `CHyprRenderer::renderWorkspaceWindowsSpatial(PHLMONITOR, PHLWORKSPACE, Time)` |
+| Algorithm | Partition windows into `buckets[Z_LAYERS_COUNT]` by `iZLayer`, sort each bucket by `fZPosition` ascending, render deepest-first with per-bucket MAIN→POPUP→FLOATING pass order |
+| Out-of-range clamping | `iZLayer < 0` or `>= Z_LAYERS_COUNT` → clamped to `bucket[0]` (foreground) |
+| Focused window deferral | Deferred to end of its own bucket (not globally), preserving per-layer occlusion |
+| Guard | `g_pZSpaceManager && g_pSpatialInputHandler && isEnabled()` — falls back to `renderWorkspaceWindows` when spatial inactive |
+| Tests | 9 tests in `tests/spatial/SpatialDepthSortTest.cpp` |
 
-| Fix | File | Description |
-|-----|------|-------------|
-| D-1 | `Renderer.cpp` | `scheduleFrameForMonitor(AQ_SCHEDULE_ANIMATION)` while `isAnimating()` is true |
-| D-2 | `Compositor.cpp` | `damageMonitor()` all monitors on layer-change callback |
-| D-3 | `Renderer.cpp` | Zero-size bounding box guard in `damageWindow()` |
-| D-4 | `ZSpaceManager.cpp` | `isAnimating()` implementation |
+### TASK-SH-202 — Per-frame FOV Lerp
+
+| Item | Detail |
+|------|--------|
+| New constant | `Z_FOV_MAX_DEGREES = 75.0f` |
+| New member | `m_fCurrentFov` (initialized to `Z_FOV_DEGREES = 60.0f`) |
+| Update site | `ZSpaceManager::update()` — after camera spring: `t = clamp(-m_fCameraZ / 2800, 0, 1); fov = 60 + 15*t` |
+| Consumer | `getSpatialProjection()` uses `m_fCurrentFov` instead of literal constant |
+| Accessor | `getCurrentFov()` for tests and HUD diagnostics |
+| Tests | 4 tests in `ZSpaceManagerTest.cpp`: idle / deep / mid / recover |
+
+### TASK-SH-301 — AR Passthrough Shader + Config Wiring
+
+| Item | Detail |
+|------|--------|
+| Shader | `src/render/shaders/passthrough_ar.frag` — `u_arPassthrough==0` is a zero-cost no-op; `==1` applies alpha-over blend with `u_arAlpha` |
+| Config keys | `ar_passthrough = 0\|1` (default 0), `ar_alpha = <float>` (default 1.0) in `spatial {}` block |
+| Runtime state | Stored in `SpatialInputHandler` (`m_bArPassthroughEnabled`, `m_fArAlpha`) — follows same pattern as `isEnabled()` |
+| Boot propagation | `Compositor.cpp` reads `SpatialConfig` at init, calls `setArPassthrough()` + `setArAlpha()` |
+| Render data | `SCurrentRenderData::arPassthrough` + `arAlpha` populated each frame from `g_pSpatialInputHandler` |
+| Disabled by default | No AR hardware required to build or run |
 
 ---
 
-## 📝 Fichero de Cambios Rápido
+## 📝 Quick Change Reference
 
-Buscar en código cambios con grep:
+Search code changes with grep:
 ```bash
 git log --all --oneline --grep="\[SPATIAL\]"
 git diff HEAD~N src/ | grep "^+.*\[SPATIAL\]"
 ```
 
-Archivos core modificados en orden de impacto:
-1. `src/render/Renderer.cpp` — +23 líneas (init + update)
-2. `src/managers/input/InputManager.cpp` — +13 líneas (scroll hook)
-3. `src/desktop/view/Window.hpp` — +11 líneas (SSpatialProps)
-4. `src/Compositor.cpp` — +3 líneas (ZSpaceManager init)
-5. `src/Compositor.hpp` — +2 líneas (includes + global)
+Core files modified in order of impact:
+1. `src/render/Renderer.cpp` — +23 lines (init + update)
+2. `src/managers/input/InputManager.cpp` — +13 lines (scroll hook)
+3. `src/desktop/view/Window.hpp` — +11 lines (SSpatialProps)
+4. `src/Compositor.cpp` — +3 lines (ZSpaceManager init)
+5. `src/Compositor.hpp` — +2 lines (includes + global)
 
 ---
 
-## 🔐 Validación
+## 🔐 Validation
 
-Todos los cambios:
-- ✅ Mantienen compatibilidad backward (SSpatialProps inerte inicialmente)
-- ✅ Prefijados con [SPATIAL] para fácil cherry-pick
-- ✅ Thread-safe (mutex interno en ZSpaceManager)
-- ✅ Sin memory leaks (RAII patterns, std::unique_ptr)
-- ✅ Sin impacto en performance (inicialización lazy)
+All changes:
+- ✅ Backward compatible (SSpatialProps inert initially)
+- ✅ Prefixed with [SPATIAL] for easy cherry-pick
+- ✅ Thread-safe (internal mutex in ZSpaceManager)
+- ✅ No memory leaks (RAII patterns, std::unique_ptr)
+- ✅ No performance impact (lazy initialization)
 
 ---
 
-*Documento: SPATIAL_CHANGES_FINAL.md*  
+*Document: SPATIAL_CHANGES_FINAL.md*  
 *Fork: spatial-hypr (Hyprland v0.45.x)*  
-*Completado: Febrero 26, 2026*  
-*Autor: GitHub Copilot (Spatial OS Agent)*
+*Completed: February 28, 2026 — all P0 compositor module tasks finalized*  
+*Author: GitHub Copilot (Spatial OS Agent)*

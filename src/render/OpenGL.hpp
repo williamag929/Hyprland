@@ -166,6 +166,10 @@ struct SCurrentRenderData {
     glm::mat4     spatialProjection = glm::mat4(1.0f);  // perspective projection for Z-depth
     glm::mat4     spatialView       = glm::mat4(1.0f);  // camera view matrix following Z-depth
 
+    // [SPATIAL] TASK-SH-301: AR passthrough blend uniforms
+    bool          arPassthrough     = false; // mirrors SpatialConfig::isArPassthroughEnabled()
+    float         arAlpha           = 1.0f;  // mirrors SpatialConfig::getArAlpha()
+
     // FIXME: raw pointer galore!
     SMonitorRenderData*    pCurrentMonData = nullptr;
     CFramebuffer*          currentFB       = nullptr; // current rendering to
