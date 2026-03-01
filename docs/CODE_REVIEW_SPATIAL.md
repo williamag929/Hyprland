@@ -362,9 +362,9 @@ sudo pacman -S --noconfirm re2 muparser
 
 \`\`\`bash
 # Inside container
-glslangValidator -V src/render/shaders/depth_spatial.frag
-glslangValidator -V src/render/shaders/depth_dof.frag
-glslangValidator -V src/render/shaders/passthrough_ar.frag
+glslangValidator -G src/render/shaders/depth_spatial.frag
+glslangValidator -G src/render/shaders/depth_dof.frag
+glslangValidator -G src/render/shaders/passthrough_ar.frag
 
 # Expected output: "Validation succeeded"
 \`\`\`
@@ -433,9 +433,9 @@ TEST_F(ZSpaceManagerTest, BoundaryConditions) {
 # .github/workflows/spatial-build.yml
 - name: Validate GLSL Shaders
   run: |
-    glslangValidator -V src/render/shaders/depth_spatial.frag
-    glslangValidator -V src/render/shaders/depth_dof.frag
-    glslangValidator -V src/render/shaders/passthrough_ar.frag
+    glslangValidator -G src/render/shaders/depth_spatial.frag
+    glslangValidator -G src/render/shaders/depth_dof.frag
+    glslangValidator -G src/render/shaders/passthrough_ar.frag
 ```
 
 #### 3. **Memory Leak Detection**

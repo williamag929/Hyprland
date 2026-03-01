@@ -268,7 +268,7 @@ Checking shaders in: src/render/shaders
 2. Ensure `#version 430 core` is first line
 3. Run individual validation:
    ```bash
-   glslangValidator -V src/render/shaders/depth_spatial.frag
+   glslangValidator -G src/render/shaders/depth_spatial.frag
    ```
 
 ---

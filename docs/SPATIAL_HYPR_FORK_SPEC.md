@@ -955,8 +955,8 @@ jobs:
 
       - name: Validate shaders
         run: |
-          glslangValidator -V src/render/shaders/depth_spatial.frag
-          glslangValidator -V src/render/shaders/depth_dof.frag
+          glslangValidator -G src/render/shaders/depth_spatial.frag
+          glslangValidator -G src/render/shaders/depth_dof.frag
 
       - name: Run spatial tests
         run: ctest --test-dir build -R "spatial" --output-on-failure

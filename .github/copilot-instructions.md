@@ -159,9 +159,9 @@ void ZSpaceManager::assignWindowToLayer(CWindow* window, int layer);
 - Tests de integración con mocks del backend IA
 
 ### GLSL (shaders)
-- Versión `#version 430 core` en todos los shaders
-- Validar con `glslangValidator -V` antes de cada commit
-- Nombrar uniforms con prefijo `u_`, varyings con `v_`
+- Version `#version 430 core` in all shaders
+- Validate with `glslangValidator -G` before each commit (`-G` = OpenGL SPIR-V target; these shaders run through wlroots/EGL, not Vulkan)
+- Name uniforms with prefix `u_`, varyings with `v_`
 
 ### Commits
 - Commits que modifican Hyprland upstream: prefijo `[SPATIAL]`
@@ -345,9 +345,9 @@ WAYLAND_DISPLAY=wayland-99 ./build/Hyprland --nested
 WAYLAND_DISPLAY=wayland-99 kitty &
 WAYLAND_DISPLAY=wayland-99 firefox &
 
-# Validar shaders antes de commit
-glslangValidator -V src/render/shaders/depth_spatial.frag
-glslangValidator -V src/render/shaders/depth_dof.frag
+# Validate shaders before commit
+glslangValidator -G src/render/shaders/depth_spatial.frag
+glslangValidator -G src/render/shaders/depth_dof.frag
 
 # Tests del módulo spatial
 ctest --test-dir build -R "spatial" --output-on-failure

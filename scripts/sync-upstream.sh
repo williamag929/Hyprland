@@ -162,7 +162,7 @@ else
     )
     for shader in "${SHADERS[@]}"; do
         if [[ -f "${REPO_ROOT}/${shader}" ]]; then
-            glslangValidator -V "${REPO_ROOT}/${shader}" > /dev/null \
+            glslangValidator -G "${REPO_ROOT}/${shader}" > /dev/null \
                 && ok "  ${shader}" \
                 || warn "  SHADER VALIDATION FAILED: ${shader}"
         else
