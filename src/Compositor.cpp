@@ -652,8 +652,16 @@ void CCompositor::initManagers(eManagersInitStage stage) {
             g_pSpatialInputHandler->setLayerChangeCallback([](int newLayer, int /*oldLayer*/) {
                 if (!g_pZSpaceManager || !g_pSpatialInputHandler)
                     return;
-                // Apply the new layer — ZSpaceManager validates range and sets spring target
-                g_pZSpaceManager->setActiveLayer(newLayer);
+                // Attempt to set the active spatial layer.
+                // setActiveLayer() returns true on success, false when newLayer is out of bounds
+                // or the manager is in an invalid state.  The return value is [[nodiscard]], so
+                // we must capture it — ignoring it triggers -Werror=unused-result.
+                bool layerSet = g_pZSpaceManager->setActiveLayer(newLayer);
+                if (!layerSet) {
+                    // The layer index was out of range or the manager rejected it; log a warning
+                    // so contributors can diagnose misconfigured keybind targets.
+                    Log::logger->log(Log::WARN, "[SPATIAL] Failed to set ZSpaceManager active layer to {} (valid range: 0–{})", newLayer, Spatial::Z_LAYERS_COUNT - 1);
+                }
                 // Read the actual resulting layer back (manager may clamp at boundaries)
                 // and keep handler's internal counter in sync
                 g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
