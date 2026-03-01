@@ -1,44 +1,43 @@
 // SPATIAL OS: Depth Spatial Shader
-// Autor: Spatial Compositor Team
-// Versión: 0.1.0
-// 
-// Propósito:
-// Shader de profundidad para Spatial OS que implementa blur adaptativo
-// y desvanecimiento por distancia Z. Cada ventana se renderiza con:
-// - Opacidad reducida según la distancia a la cámara
-// - Blur Gaussiano proporcional a la distancia
-// - Escala perspectiva automática
+// Version: 0.1.0
+//
+// Purpose:
+// Depth shader for Spatial OS implementing adaptive Gaussian blur and
+// Z-distance fade. Each window is rendered with:
+//   - Reduced opacity proportional to camera distance
+//   - Gaussian blur proportional to depth
+//   - Automatic perspective scaling
 //
 // Uniforms:
-//   u_zDepth (float)      : 0.0 = frente (nítido), 1.0 = fondo (muy borroso)
-//   u_blurRadius (float)  : radio de blur en píxeles
-//   u_alpha (float)       : opacidad base de la ventana
-//   tex (sampler2D)       : textura de la ventana
-//   texBlur (sampler2D)   : versión pre-blureada de la textura
+//   u_zDepth    (float)     : 0.0 = front (sharp), 1.0 = back (very blurry)
+//   u_blurRadius (float)   : blur radius in pixels
+//   alpha       (float)    : base window opacity (Hyprland standard)
+//   tex         (sampler2D): window texture
+//   fullSize    (vec2)     : screen resolution (Hyprland standard)
 
 #version 430 core
 
 layout(location = 0) in vec2 v_texCoord;
 layout(location = 1) in vec4 v_color;
 
-uniform sampler2D tex;       // Textura principal
-uniform float u_zDepth;      // Normalizado: 0.0 = frente, 1.0 = fondo
-uniform float u_blurRadius;  // Radio de blur en píxeles
-uniform float alpha;         // Alpha base de la ventana (Hyprland standard)
-uniform vec2 fullSize;       // Resolución de pantalla (Hyprland standard)
+layout(binding = 0) uniform sampler2D tex;  // window texture
+uniform float u_zDepth;      // normalized: 0.0 = front, 1.0 = back
+uniform float u_blurRadius;  // blur radius in pixels
+uniform float alpha;         // base window alpha (Hyprland standard)
+uniform vec2 fullSize;       // screen resolution (Hyprland standard)
 
 out vec4 fragColor;
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Blur Gaussiano 9-tap adaptativo
+// Adaptive 9-tap Gaussian blur
 // ──────────────────────────────────────────────────────────────────────────────
 vec4 sampleBlur(sampler2D colorTex, vec2 uv, float radius) {
-    // Si el radio es muy pequeño, no hacer blur
+    // Skip blur when radius is negligible
     if (radius < 0.5) {
         return texture(colorTex, uv);
     }
 
-    // Kernel gaussiano 3x3
+    // 3x3 Gaussian kernel
     vec4 result = vec4(0.0);
     float totalWeight = 0.0;
 
@@ -65,27 +64,27 @@ vec4 sampleBlur(sampler2D colorTex, vec2 uv, float radius) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Desvanecimiento por profundidad
+// Depth fade
 // ──────────────────────────────────────────────────────────────────────────────
 float getDepthFade(float zDepth) {
-    // Función de fade suave: 0.0 = opaco, 1.0 = completamente transparente
-    // Curva cúbica para fade más natural
+    // Smooth fade: 0.0 = opaque, 1.0 = fully transparent
+    // Cubic curve for a more natural feel
     float t = zDepth * zDepth * zDepth;
     return smoothstep(0.0, 1.0, t);
 }
 
 void main() {
-    // Muestrear color con blur
+    // Sample color with blur
     vec4 color = sampleBlur(tex, v_texCoord, u_blurRadius);
 
-    // Aplicar opacidad por profundidad
+    // Apply depth-based opacity
     float depthFade = getDepthFade(u_zDepth);
     color.a = mix(color.a, 0.0, depthFade);
 
-    // Aplicar alpha base (Hyprland standard)
+    // Apply base alpha (Hyprland standard)
     color.a *= alpha;
 
-    // Multiplicar por color vertex (preserva tinting)
+    // Multiply by vertex color (preserves tinting)
     color *= v_color;
 
     fragColor = color;

@@ -26,8 +26,8 @@
 
 #version 430 core
 
-uniform sampler2D u_tex;            // compositor window stack render texture
-uniform sampler2D u_arCameraTex;    // XR runtime camera passthrough texture
+layout(binding = 0) uniform sampler2D u_tex;          // compositor window stack render texture
+layout(binding = 1) uniform sampler2D u_arCameraTex;  // XR runtime camera passthrough texture
 uniform int       u_arPassthrough;  // 0 = desktop, 1 = AR passthrough active
 uniform float     u_arAlpha;        // global blend weight [0.0 – 1.0]
 

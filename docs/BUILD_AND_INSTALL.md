@@ -76,12 +76,17 @@ cmake -B build \
 cmake --build build -j$(nproc)
 ```
 
+
+```bash
+# For rebuild prevent error delete first and try again
+find build --name "*.gcda" -delete
+```
 Build artifacts:
 - `build/Hyprland` — main compositor binary
 - `build/hyprctl/hyprctl` — IPC control tool
 
 ### run
-
+```bash
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export WAYLAND_DISPLAY=wayland-0   # GNOME's socket — usually wayland-0 or wayland-1
 export WLR_BACKENDS=wayland
@@ -94,7 +99,7 @@ echo "monitor=,1920x1080@60,0x0,1" >> ~/.config/hypr/hyprland.conf
 ./build/Hyprland --config ~/.config/hypr/hyprland.conf
 
 ./build/Hyprland --config ~/.config/hypr/hyprland.conf
-
+```
 Hyprland opens as a window inside your GNOME session. If wayland-0 doesn't work, check the correct socket:
 
 echo $WAYLAND_DISPLAY
