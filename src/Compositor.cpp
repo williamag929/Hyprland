@@ -657,6 +657,13 @@ void CCompositor::initManagers(eManagersInitStage stage) {
                 // Read the actual resulting layer back (manager may clamp at boundaries)
                 // and keep handler's internal counter in sync
                 g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
+                // [SPATIAL] Damage all monitors so the opacity/blur changes from the new
+                // layer assignment are composited immediately — without this the old frame
+                // is frozen until an unrelated content change triggers a repaint.
+                if (g_pHyprRenderer && g_pCompositor) {
+                    for (auto const& m : g_pCompositor->m_monitors)
+                        g_pHyprRenderer->damageMonitor(m);
+                }
             });
 
             // [SPATIAL] Propagate enabled flag from $spatial { enabled = ... } in hyprland.conf.

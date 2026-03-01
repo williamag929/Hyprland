@@ -34,8 +34,13 @@ constexpr float Z_NEAR              = 0.1f;
 /// @brief Far clipping plane for perspective projection
 constexpr float Z_FAR               = 10000.0f;
 
-/// @brief Vertical field-of-view in degrees for spatial perspective
+/// @brief Vertical field-of-view in degrees for spatial perspective (layer 0, closest view)
 constexpr float Z_FOV_DEGREES       = 60.0f;
+
+/// @brief Maximum field-of-view in degrees when camera is at the deepest layer (layer 3)
+/// @note FOV interpolates linearly from Z_FOV_DEGREES (layer 0) to Z_FOV_MAX_DEGREES (layer 3),
+///       producing a subtle cinematic pull-back as the user navigates deeper into the Z stack.
+constexpr float Z_FOV_MAX_DEGREES   = 75.0f;
 
 /// @brief Spring stiffness constant for Z animation (higher = snappier)
 constexpr float Z_ANIM_STIFFNESS    = 200.0f;
@@ -181,6 +186,12 @@ public:
     ///        deltaTime is clamped internally to [0, 0.05] to prevent spring divergence.
     void update(float deltaTime);
 
+    /// @brief Return true when the camera or any window is still moving
+    /// @return true if any spring has velocity or position delta above threshold
+    /// @note Used by the render loop to schedule the next frame during Z transitions.
+    ///       Once all springs settle this returns false so VFR can idle the GPU.
+    [[nodiscard]] bool isAnimating() const;
+
     /// @brief Get the animation target Z position of a window
     /// @param window  Opaque pointer to CWindow
     /// @return Target Z in world units; 0.0 if not registered
@@ -194,8 +205,13 @@ public:
     // ── Projection Matrices ───────────────────────────────────────────────────
 
     /// @brief Build the perspective projection matrix for the current camera state
-    /// @return Column-major 4×4 perspective matrix (FOV=60°, near=0.1, far=10000)
+    /// @return Column-major 4×4 perspective matrix (FOV lerps 60°→75° with depth, near=0.1, far=10000)
     [[nodiscard]] glm::mat4 getSpatialProjection() const;
+
+    /// @brief Get the current interpolated field-of-view in degrees
+    /// @return FOV in [Z_FOV_DEGREES, Z_FOV_MAX_DEGREES] driven by camera Z position
+    /// @note Updated every frame by update(). Useful for tests and HUD diagnostics.
+    [[nodiscard]] float getCurrentFov() const;
 
     /// @brief Build the view matrix for the current camera Z position
     /// @return Column-major 4×4 look-at view matrix (Y-axis inverted for screen space)
@@ -252,8 +268,9 @@ private:
     int                  m_iActiveLayer     = 0; ///< Current layer index
     float                m_fCameraZ         = 0.0f; ///< Animated camera Z
     float                m_fCameraZTarget   = 0.0f; ///< Camera spring target
-    float                m_fCameraZVelocity = 0.0f; ///< Camera spring velocity
-    int                  m_iScreenW         = 0;    ///< Screen width (pixels)
+    float                m_fCameraZVelocity = 0.0f;          ///< Camera spring velocity
+    float                m_fCurrentFov      = Z_FOV_DEGREES; ///< [SPATIAL] Interpolated FOV (degrees) — TASK-SH-202
+    int                  m_iScreenW         = 0;             ///< Screen width (pixels)
     int                  m_iScreenH         = 0;    ///< Screen height (pixels)
 
     /// @brief Internal mutex protecting m_vWindowsZ and camera state

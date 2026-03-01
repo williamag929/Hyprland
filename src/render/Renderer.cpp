@@ -395,17 +395,6 @@ void CHyprRenderer::renderWorkspaceWindows(PHLMONITOR pMonitor, PHLWORKSPACE pWo
         windows.emplace_back(w);
     }
 
-    // [SPATIAL] Depth sorting — painter's algorithm (back to front by Z coordinate).
-    // Applied once to the shared `windows` vector before ALL passes (tiled, popup, floating)
-    // so every subsequent iteration loop inherits the correct back-to-front render order.
-    if (g_pZSpaceManager) {
-        std::sort(windows.begin(), windows.end(),
-            [](const PHLWINDOWREF& a, const PHLWINDOWREF& b) {
-                return a->m_sSpatialProps.fZPosition < b->m_sSpatialProps.fZPosition;
-            }
-        );
-    }
-
     // Non-floating main
     for (auto& w : windows) {
         if (w->m_isFloating)
@@ -498,6 +487,163 @@ void CHyprRenderer::renderWorkspaceWindows(PHLMONITOR pMonitor, PHLWORKSPACE pWo
     // Render the focused floating window on top of all other floating windows
     if (lastFloatingWindow)
         renderWindow(lastFloatingWindow, pMonitor, time, true, RENDER_PASS_ALL);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [SPATIAL] Z-Bucket Grouped Renderer
+// ─────────────────────────────────────────────────────────────────────────────
+// Replaces renderWorkspaceWindows() when spatial navigation is active.
+//
+// Problem with the original single-pass sort:
+//   All tiled windows render before all floating windows (hard-coded three-pass
+//   structure).  A floating window at Z-layer 3 (far/background) will always
+//   composite on top of a tiled window at Z-layer 0 (foreground) because it
+//   lives in pass C which runs after pass A.  The continuous Z sort applied to
+//   the shared vector fixes intra-class order but cannot fix cross-class order.
+//
+// Solution — Z-bucket painter's algorithm:
+//   Partition windows into Z_LAYERS_COUNT discrete buckets by iZLayer.
+//   Render from deepest bucket (Z_LAYERS_COUNT-1) down to bucket 0.
+//   Within each bucket, preserve the canonical Hyprland render order:
+//     Pass A — non-floating tiled   (RENDER_PASS_MAIN)
+//     Pass B — non-floating popups  (RENDER_PASS_POPUP)   ← must follow parent MAIN
+//     Pass C — floating             (RENDER_PASS_ALL)
+//   Within each pass, sort by continuous fZPosition for smooth mid-transition order.
+//   Focused window deferred to end of its bucket (not globally), so it ranks highest
+//   within its layer but below any nearer layer.
+//
+// Compatibility:
+//   - g_pZSpaceManager == nullptr → never called, original function used
+//   - spatial { enabled = false }  → same as above
+//   - Fullscreen mode              → renderWorkspaceWindowsFullscreen(), not this
+//   - Pinned windows               → excluded here, rendered separately (pinned pass)
+//   - Special workspaces           → called separately per-ws, same branching applies
+// ─────────────────────────────────────────────────────────────────────────────
+void CHyprRenderer::renderWorkspaceWindowsSpatial(PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, const Time::steady_tp& time) {
+    Event::bus()->m_events.render.stage.emit(RENDER_PRE_WINDOWS);
+
+    // ── 1. Collect all eligible windows (same filter as renderWorkspaceWindows) ──
+    std::vector<PHLWINDOWREF> windows;
+    windows.reserve(g_pCompositor->m_windows.size());
+
+    for (auto const& w : g_pCompositor->m_windows) {
+        if (w->isHidden() || (!w->m_isMapped && !w->m_fadingOut))
+            continue;
+
+        if (!shouldRenderWindow(w, pMonitor))
+            continue;
+
+        windows.emplace_back(w);
+    }
+
+    // ── 2. Partition into per-layer buckets ───────────────────────────────────
+    // Bucket[i] holds windows assigned to Z layer i.
+    // A window with iZLayer out of [0, Z_LAYERS_COUNT) is clamped to layer 0
+    // (foreground) — this covers newly-mapped windows before assignWindowToLayer fires.
+    std::array<std::vector<PHLWINDOWREF>, Spatial::Z_LAYERS_COUNT> buckets;
+
+    for (auto const& w : windows) {
+        int layer = w->m_sSpatialProps.iZLayer;
+        if (layer < 0 || layer >= Spatial::Z_LAYERS_COUNT)
+            layer = 0;
+        buckets[static_cast<size_t>(layer)].emplace_back(w);
+    }
+
+    // Within each bucket sort back-to-front by continuous Z position.
+    // This makes mid-animation windows (between discrete layers) composite correctly.
+    for (auto& bucket : buckets) {
+        std::sort(bucket.begin(), bucket.end(),
+            [](const PHLWINDOWREF& a, const PHLWINDOWREF& b) {
+                return a->m_sSpatialProps.fZPosition < b->m_sSpatialProps.fZPosition;
+            }
+        );
+    }
+
+    // ── 3. Render deepest-first (painter's algorithm across buckets) ──────────
+    const PHLWINDOW focusedWindow = Desktop::focusState()->window();
+
+    for (int li = Spatial::Z_LAYERS_COUNT - 1; li >= 0; --li) {
+        const auto bucket_idx = static_cast<size_t>(li);
+        auto&      bucket     = buckets[bucket_idx];
+
+        if (bucket.empty())
+            continue;
+
+        // ── Pass A: non-floating tiled (RENDER_PASS_MAIN) ────────────────────
+        PHLWINDOW                 lastTiledInBucket;
+        std::vector<PHLWINDOWREF> tiledFadingOutInBucket;
+
+        for (auto const& w : bucket) {
+            if (!w || w->m_isFloating)
+                continue;
+
+            const bool IGNORE_SPECIAL_CHECK = w->m_monitorMovedFrom != -1 && (w->m_workspace && !w->m_workspace->isVisible());
+            if (!IGNORE_SPECIAL_CHECK && pWorkspace->m_isSpecialWorkspace != w->onSpecialWorkspace())
+                continue;
+
+            // Focused tiled deferred to end of bucket's pass A
+            if (w == focusedWindow) {
+                lastTiledInBucket = w.lock();
+                continue;
+            }
+
+            // Fading-out tiled deferred to end of bucket's pass A (after focused)
+            if (w->m_fadingOut) {
+                tiledFadingOutInBucket.emplace_back(w);
+                continue;
+            }
+
+            renderWindow(w.lock(), pMonitor, time, true, RENDER_PASS_MAIN);
+        }
+
+        // Focused tiled last within this bucket's pass A
+        if (lastTiledInBucket)
+            renderWindow(lastTiledInBucket, pMonitor, time, true, RENDER_PASS_MAIN);
+
+        // Fading-out tiled after focused (consistent with renderWorkspaceWindows)
+        for (auto const& w : tiledFadingOutInBucket)
+            renderWindow(w.lock(), pMonitor, time, true, RENDER_PASS_MAIN);
+
+        // ── Pass B: non-floating popups (RENDER_PASS_POPUP) ──────────────────
+        // Must follow its bucket's pass A so popups always appear above their parent.
+        for (auto const& w : bucket) {
+            if (!w || w->m_isFloating)
+                continue;
+
+            const bool IGNORE_SPECIAL_CHECK = w->m_monitorMovedFrom != -1 && (w->m_workspace && !w->m_workspace->isVisible());
+            if (!IGNORE_SPECIAL_CHECK && pWorkspace->m_isSpecialWorkspace != w->onSpecialWorkspace())
+                continue;
+
+            renderWindow(w.lock(), pMonitor, time, true, RENDER_PASS_POPUP);
+        }
+
+        // ── Pass C: floating (RENDER_PASS_ALL) ───────────────────────────────
+        PHLWINDOW lastFloatingInBucket;
+
+        for (auto const& w : bucket) {
+            if (!w || !w->m_isFloating || w->m_pinned)
+                continue;
+
+            const bool IGNORE_SPECIAL_CHECK = w->m_monitorMovedFrom != -1 && (w->m_workspace && !w->m_workspace->isVisible());
+            if (!IGNORE_SPECIAL_CHECK && pWorkspace->m_isSpecialWorkspace != w->onSpecialWorkspace())
+                continue;
+
+            if (pWorkspace->m_isSpecialWorkspace && w->m_monitor != pWorkspace->m_monitor)
+                continue; // special on another monitor rendered as part of the base pass
+
+            // Focused floating deferred to end of bucket's pass C
+            if (w == focusedWindow) {
+                lastFloatingInBucket = w.lock();
+                continue;
+            }
+
+            renderWindow(w.lock(), pMonitor, time, true, RENDER_PASS_ALL);
+        }
+
+        // Focused floating last within this bucket
+        if (lastFloatingInBucket)
+            renderWindow(lastFloatingInBucket, pMonitor, time, true, RENDER_PASS_ALL);
+    }
 }
 
 void CHyprRenderer::renderWindow(PHLWINDOW pWindow, PHLMONITOR pMonitor, const Time::steady_tp& time, bool decorate, eRenderPassMode mode, bool ignorePosition, bool standalone) {
@@ -1001,6 +1147,8 @@ void CHyprRenderer::renderAllClientsForWorkspace(PHLMONITOR pMonitor, PHLWORKSPA
 
     if UNLIKELY /* subjective? */ (pWorkspace->m_hasFullscreenWindow)
         renderWorkspaceWindowsFullscreen(pMonitor, pWorkspace, time);
+    else if (g_pZSpaceManager && g_pSpatialInputHandler && g_pSpatialInputHandler->isEnabled())
+        renderWorkspaceWindowsSpatial(pMonitor, pWorkspace, time); // [SPATIAL]
     else
         renderWorkspaceWindows(pMonitor, pWorkspace, time);
 
@@ -1035,6 +1183,8 @@ void CHyprRenderer::renderAllClientsForWorkspace(PHLMONITOR pMonitor, PHLWORKSPA
 
         if (ws->m_hasFullscreenWindow)
             renderWorkspaceWindowsFullscreen(pMonitor, ws.lock(), time);
+        else if (g_pZSpaceManager && g_pSpatialInputHandler && g_pSpatialInputHandler->isEnabled())
+            renderWorkspaceWindowsSpatial(pMonitor, ws.lock(), time); // [SPATIAL]
         else
             renderWorkspaceWindows(pMonitor, ws.lock(), time);
     }
@@ -1379,6 +1529,12 @@ void CHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
             g_pZSpaceManager->update(deltaTime);
             lastFrameTime = NOW;
         }
+
+        // [SPATIAL] Keep render loop alive while Z springs are still moving.
+        // Without this, VFR mode stops issuing frames once damage.hasChanged() goes
+        // false — the camera/window animations freeze mid-transition.
+        if (g_pZSpaceManager->isAnimating())
+            g_pCompositor->scheduleFrameForMonitor(pMonitor, Aquamarine::IOutput::AQ_SCHEDULE_ANIMATION);
 
         // Always recompute projection matrices (cheap, monitor-specific)
         g_pHyprOpenGL->m_renderData.spatialProjection = g_pZSpaceManager->getSpatialProjection();
@@ -2025,6 +2181,14 @@ void CHyprRenderer::damageWindow(PHLWINDOW pWindow, bool forceFull) {
     if (PWINDOWWORKSPACE && PWINDOWWORKSPACE->m_renderOffset->isBeingAnimated() && !pWindow->m_pinned)
         windowBox.translate(PWINDOWWORKSPACE->m_renderOffset->value());
     windowBox.translate(pWindow->m_floatingOffset);
+
+    // [SPATIAL] Guard: skip damage for windows with no geometry yet.
+    // A 0×0 or negative box passed to pixman_region32_init_rect triggers
+    // "Invalid rectangle passed" and produces a corrupt region that causes
+    // rendering artifacts. This happens when a window is assigned a Z layer
+    // during construction before its geometry has been resolved.
+    if (windowBox.width <= 0 || windowBox.height <= 0)
+        return;
 
     for (auto const& m : g_pCompositor->m_monitors) {
         if (forceFull || shouldRenderWindow(pWindow, m)) { // only damage if window is rendered on monitor

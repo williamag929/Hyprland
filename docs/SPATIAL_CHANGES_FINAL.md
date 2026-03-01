@@ -1,8 +1,8 @@
 # Cambios Espaciales [SPATIAL] — Fork Hyprland v0.45.x
 
 > Registro de modificaciones para Spatial OS integración  
-> Última actualización: Febrero 26, 2026  
-> **Estado: Fase 1-4 COMPLETADAS ✅**
+> Última actualización: Febrero 28, 2026  
+> **Estado: Fases 1-4 + SH-107/108/SH-004 COMPLETADAS ✅ — SH-201 listo para @refactor**
 
 ---
 
@@ -219,28 +219,43 @@ Future Rendering:
 
 ---
 
-## 🚀 Próximos Pasos (Fases 5-8)
+## 🚀 Próximos Pasos / Task Status
 
-### Fase 5: Depth Sorting & Perspectiva (renderMonitor)
-- [ ] `getSpatialProjection()` — glm::perspective(60°, aspect, 0.1, 10000)
-- [ ] `getSpatialView()` — glm::lookAt() con cámara en eje Z
-- [ ] Sort de m_windows por fZPosition antes de renderizar
-- [ ] Depth sorting painter's algorithm
+### @architect Specs
 
-### Fase 6: Shader Integration
-- [ ] Cargar depth_spatial.frag + depth_dof.frag en CHyprOpenGL
-- [ ] Compilar con glslangValidator
-- [ ] Pasar uniforms: `u_zDepth`, `u_blurRadius` por ventana
+| Task | Description | Status | Spec |
+|------|------------|--------|------|
+| TASK-SH-001 | Renderer.cpp uniform-upload path analysis | ✅ Done | `docs/TASK_SH_001_RENDERER_UNIFORM_PATH.md` |
+| TASK-SH-002 | Depth sorting strategy — render pipeline | ✅ **Spec approved** | `docs/TASK_SH_002_DEPTH_SORT_SPEC.md` |
+| TASK-SH-003 | hyprlang `spatial {}` section parser | ✅ Done via `registerConfigVar` | — |
+| TASK-SH-004 | Damage tracking impact analysis | ✅ **All fixes implemented** | `docs/TASK_SH_004_DAMAGE_TRACKING_SPEC.md` |
 
-### Fase 7: Window Assignment
-- [ ] `mapWindow()` asigna ventanas a iZLayer según configuración
-- [ ] Sincronizar Z en operaciones de workspace
-- [ ] Actualizar SSpatialProps en animaciones
+### @refactor Tasks
 
-### Fase 8: Config & Advanced
-- [ ] Parser SpatialConfig → hyprlang `$spatial {}` sección
-- [ ] Hot-reload de parámetros
-- [ ] Advanced: AR passthrough (Meta Quest 3), OpenXR integration
+| Task | Description | Status |
+|------|------------|--------|
+| TASK-SH-101 | `Window.hpp` — `SSpatialProps` struct | ✅ Done |
+| TASK-SH-102 | `ZSpaceManager.hpp/cpp` + tests | ✅ Done |
+| TASK-SH-103 | `depth_spatial.frag` + `depth_dof.frag` shaders compiled | ✅ Done |
+| TASK-SH-104 | `Renderer.cpp` — perspective, depth sort, shader uniforms | ✅ Done |
+| TASK-SH-105 | `InputManager.cpp` — scroll → Z nav + keybinds | ✅ Done |
+| TASK-SH-106 | `sync-upstream.sh` + `UPSTREAM_SYNC.md` + CI | ✅ Done |
+| TASK-SH-107 | `SpatialConfig.hpp/cpp` + `enabled` toggle | ✅ Done |
+| TASK-SH-108 | `SpatialInputHandler` enable/disable wiring | ✅ Done |
+| TASK-SH-201 | `renderWorkspaceWindowsSpatial()` — Z-bucket cross-class sort | 🔲 **Ready to start** (spec: SH-002) |
+| TASK-SH-202 | Per-frame projection matrix lerp | 🔲 Pending |
+| TASK-SH-301 | `passthrough_ar.frag` + OpenXR framebuffer | 🔲 Pending |
+
+### TASK-SH-004 Damage Fixes Summary
+
+All four fixes applied in `src/`:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| D-1 | `Renderer.cpp` | `scheduleFrameForMonitor(AQ_SCHEDULE_ANIMATION)` while `isAnimating()` is true |
+| D-2 | `Compositor.cpp` | `damageMonitor()` all monitors on layer-change callback |
+| D-3 | `Renderer.cpp` | Zero-size bounding box guard in `damageWindow()` |
+| D-4 | `ZSpaceManager.cpp` | `isAnimating()` implementation |
 
 ---
 

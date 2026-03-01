@@ -545,3 +545,100 @@ TEST_F(ZSpaceManagerTest, DebugPrintDoesNotCrash) {
     mgr.assignWindowToLayer(win0.handle(), 0);
     EXPECT_NO_THROW(mgr.debugPrint());
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// IS ANIMATING — TASK-SH-004 / TASK-SH-201
+// ══════════════════════════════════════════════════════════════════════════════
+
+TEST_F(ZSpaceManagerTest, IsAnimatingFalseWhenIdle) {
+    // Freshly initialized manager with no layer changes — nothing moving
+    EXPECT_FALSE(mgr.isAnimating());
+}
+
+TEST_F(ZSpaceManagerTest, IsAnimatingTrueAfterLayerChange) {
+    // setActiveLayer() sets a new camera Z target, spring starts moving
+    mgr.setActiveLayer(1);
+    EXPECT_TRUE(mgr.isAnimating());
+}
+
+TEST_F(ZSpaceManagerTest, IsAnimatingFalseAfterSpringSettles) {
+    // Drive the spring to settle by stepping with large dt many times
+    mgr.setActiveLayer(2);
+    for (int i = 0; i < 500; ++i)
+        mgr.update(0.016f);
+    EXPECT_FALSE(mgr.isAnimating());
+}
+
+TEST_F(ZSpaceManagerTest, IsAnimatingTrueWhenWindowMidTransition) {
+    // Assign a window to layer 3 so its spring moves toward -2800
+    mgr.assignWindowToLayer(win0.handle(), 3);
+    // The window target is now -2800 but position is still 0 from the earlier assign
+    // Manually poke the position to simulate mid-transition
+    mgr.update(0.001f); // tiny step so spring hasn't settled
+    // Camera is at layer 0 (no layer change), but the window spring is moving
+    const bool animating = mgr.isAnimating();
+    // After a tiny step the window delta is still large (0 → -2800 range)
+    EXPECT_TRUE(animating);
+}
+
+TEST_F(ZSpaceManagerTest, IsAnimatingFalseAfterWindowSpringSettles) {
+    mgr.assignWindowToLayer(win0.handle(), 1);
+    // Drive everything to settle
+    for (int i = 0; i < 500; ++i)
+        mgr.update(0.016f);
+    EXPECT_FALSE(mgr.isAnimating());
+}
+
+TEST_F(ZSpaceManagerTest, IsAnimatingReturnsFalseOnLayer0ToLayer0) {
+    // Redundant setActiveLayer — no actual change, spring doesn't fire
+    mgr.setActiveLayer(0); // already at 0
+    EXPECT_FALSE(mgr.isAnimating());
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FOV LERP — TASK-SH-202
+// ══════════════════════════════════════════════════════════════════════════════
+
+TEST_F(ZSpaceManagerTest, FovIsBaseAtLayer0) {
+    // Before any layer change camera is at Z=0 → FOV must equal Z_FOV_DEGREES (60°)
+    EXPECT_FLOAT_EQ(mgr.getCurrentFov(), Spatial::Z_FOV_DEGREES);
+}
+
+TEST_F(ZSpaceManagerTest, FovIncreasesAsCameraMovesDeeper) {
+    // Transition to layer 3 (deepest). After settling FOV must be at max.
+    mgr.setActiveLayer(3);
+    for (int i = 0; i < 500; ++i)
+        mgr.update(0.016f);
+
+    const float fov = mgr.getCurrentFov();
+    EXPECT_NEAR(fov, Spatial::Z_FOV_MAX_DEGREES, 0.5f)
+        << "FOV after settling at layer 3 should be ~Z_FOV_MAX_DEGREES";
+    EXPECT_GT(fov, Spatial::Z_FOV_DEGREES)
+        << "FOV at deepest layer must exceed base FOV";
+}
+
+TEST_F(ZSpaceManagerTest, FovMidLayerIsInterpolated) {
+    // Settle at layer 1 (-800 / -2800 ≈ 0.286 of full range)
+    // Expected FOV ≈ 60 + 0.286*(75-60) ≈ 64.3°
+    mgr.setActiveLayer(1);
+    for (int i = 0; i < 500; ++i)
+        mgr.update(0.016f);
+
+    const float fov = mgr.getCurrentFov();
+    EXPECT_GT(fov, Spatial::Z_FOV_DEGREES)     << "mid-range FOV must exceed base";
+    EXPECT_LT(fov, Spatial::Z_FOV_MAX_DEGREES) << "mid-range FOV must be below max";
+}
+
+TEST_F(ZSpaceManagerTest, FovReturnsToBseWhenCameraReturnToLayer0) {
+    // Deep then back: FOV must return to base after spring settles at layer 0.
+    mgr.setActiveLayer(3);
+    for (int i = 0; i < 500; ++i)
+        mgr.update(0.016f);
+
+    mgr.setActiveLayer(0);
+    for (int i = 0; i < 500; ++i)
+        mgr.update(0.016f);
+
+    EXPECT_NEAR(mgr.getCurrentFov(), Spatial::Z_FOV_DEGREES, 0.5f)
+        << "FOV must recover to Z_FOV_DEGREES after camera returns to layer 0";
+}

@@ -16,7 +16,8 @@ namespace Spatial {
 
 ZSpaceManager::ZSpaceManager()
     : m_iActiveLayer(0), m_fCameraZ(0.0f), m_fCameraZTarget(0.0f),
-      m_fCameraZVelocity(0.0f), m_iScreenW(0), m_iScreenH(0) {
+      m_fCameraZVelocity(0.0f), m_fCurrentFov(Z_FOV_DEGREES),
+      m_iScreenW(0), m_iScreenH(0) {
 }
 
 ZSpaceManager::~ZSpaceManager() {
@@ -154,6 +155,15 @@ void ZSpaceManager::update(float deltaTime) {
         }
     }
 
+    // [SPATIAL] TASK-SH-202: FOV lerp — widens from Z_FOV_DEGREES (layer 0) to
+    // Z_FOV_MAX_DEGREES (layer 3) proportionally to camera depth, giving a cinematic
+    // pull-back effect.  t=0 at the foreground, t=1 at the deepest layer.
+    {
+        constexpr float kMaxDepth = -LAYER_Z_POSITIONS[Z_LAYERS_COUNT - 1]; // 2800.0f
+        const float t = std::clamp(-m_fCameraZ / kMaxDepth, 0.0f, 1.0f);
+        m_fCurrentFov = Z_FOV_DEGREES + (Z_FOV_MAX_DEGREES - Z_FOV_DEGREES) * t;
+    }
+
     // Update all windows
     for (auto& wz : m_vWindowsZ) {
         updateSpringAnimation(wz, deltaTime);
@@ -179,6 +189,22 @@ void ZSpaceManager::update(float deltaTime) {
     }
 }
 
+bool ZSpaceManager::isAnimating() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+
+    // Camera is still moving
+    if (std::abs(m_fCameraZVelocity) > 0.1f || std::abs(m_fCameraZTarget - m_fCameraZ) > 0.1f)
+        return true;
+
+    // Any window spring is still moving
+    for (const auto& wz : m_vWindowsZ) {
+        if (std::abs(wz.fZVelocity) > 0.1f || std::abs(wz.fZTarget - wz.fZPosition) > 0.1f)
+            return true;
+    }
+
+    return false;
+}
+
 float ZSpaceManager::getWindowZTarget(void* window) const {
     std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
 
@@ -196,7 +222,12 @@ float ZSpaceManager::getWindowZVelocity(void* window) const {
 glm::mat4 ZSpaceManager::getSpatialProjection() const {
     std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
     float aspect = (float)m_iScreenW / (float)m_iScreenH;
-    return glm::perspective(glm::radians(Z_FOV_DEGREES), aspect, Z_NEAR, Z_FAR);
+    return glm::perspective(glm::radians(m_fCurrentFov), aspect, Z_NEAR, Z_FAR); // [SPATIAL] TASK-SH-202
+}
+
+float ZSpaceManager::getCurrentFov() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mtxWindows);
+    return m_fCurrentFov;
 }
 
 glm::mat4 ZSpaceManager::getSpatialView() const {
