@@ -1440,6 +1440,35 @@ PHLWINDOW CCompositor::getWindowInDirection(const CBox& box, PHLWORKSPACE pWorks
     PHLWINDOW   leaderWindow = nullptr;
 
     if (!useVectorAngles) {
+        // helper to check if two rectangles are adjacent along an axis, considering slight overlaps.
+        // returns true if: STICKS (delta <= 2) OR rectangles overlap but no more than 50% of the smaller dimension.
+        static auto isAdjacent = [](const double aMin, const double aMax, const double bMin, const double bMax) -> bool {
+            constexpr double STICK_THRESHOLD   = 2.0;
+            constexpr double MAX_OVERLAP_RATIO = 0.5;
+
+            const double     aEdge = aMin;
+            const double     bEdge = bMax;
+            const double     delta = aEdge - bEdge;
+
+            // old STICKS check for 2px
+            if (std::abs(delta) < STICK_THRESHOLD)
+                return true;
+
+            if (delta >= 0)
+                return false;
+
+            const double overlap = -delta;
+            const double sizeA   = aMax - aMin;
+            const double sizeB   = bMax - bMin;
+
+            // reject if one rectangle fully contains the other
+            if ((bMin <= aMin && bMax >= aMax) || (aMin <= bMin && aMax >= bMax))
+                return false;
+
+            // accept if overlap is at most 50% of the smaller dimension
+            return overlap <= std::min(sizeA, sizeB) * MAX_OVERLAP_RATIO;
+        };
+
         for (auto const& w : m_windows) {
             if (w == ignoreWindow || !w->m_workspace || !w->m_isMapped || w->isHidden() || (!w->isFullscreen() && w->m_isFloating) || !w->m_workspace->isVisible())
                 continue;
@@ -1462,24 +1491,20 @@ PHLWINDOW CCompositor::getWindowInDirection(const CBox& box, PHLWORKSPACE pWorks
 
             switch (dir) {
                 case Math::DIRECTION_LEFT:
-                    if (STICKS(POSA.x, POSB.x + SIZEB.x)) {
+                    if (isAdjacent(POSA.x, POSA.x + SIZEA.x, POSB.x, POSB.x + SIZEB.x))
                         intersectLength = std::max(0.0, std::min(POSA.y + SIZEA.y, POSB.y + SIZEB.y) - std::max(POSA.y, POSB.y));
-                    }
                     break;
                 case Math::DIRECTION_RIGHT:
-                    if (STICKS(POSA.x + SIZEA.x, POSB.x)) {
+                    if (isAdjacent(POSB.x, POSB.x + SIZEB.x, POSA.x, POSA.x + SIZEA.x))
                         intersectLength = std::max(0.0, std::min(POSA.y + SIZEA.y, POSB.y + SIZEB.y) - std::max(POSA.y, POSB.y));
-                    }
                     break;
                 case Math::DIRECTION_UP:
-                    if (STICKS(POSA.y, POSB.y + SIZEB.y)) {
+                    if (isAdjacent(POSA.y, POSA.y + SIZEA.y, POSB.y, POSB.y + SIZEB.y))
                         intersectLength = std::max(0.0, std::min(POSA.x + SIZEA.x, POSB.x + SIZEB.x) - std::max(POSA.x, POSB.x));
-                    }
                     break;
                 case Math::DIRECTION_DOWN:
-                    if (STICKS(POSA.y + SIZEA.y, POSB.y)) {
+                    if (isAdjacent(POSB.y, POSB.y + SIZEB.y, POSA.y, POSA.y + SIZEA.y))
                         intersectLength = std::max(0.0, std::min(POSA.x + SIZEA.x, POSB.x + SIZEB.x) - std::max(POSA.x, POSB.x));
-                    }
                     break;
                 default: break;
             }
@@ -2783,6 +2808,7 @@ void CCompositor::arrangeMonitors() {
     }
 
     PROTO::xdgOutput->updateAllOutputs();
+    Event::bus()->m_events.monitor.layoutChanged.emit();
 
 #ifndef NO_XWAYLAND
     const auto box = g_pCompositor->calculateX11WorkArea();
@@ -3075,6 +3101,27 @@ void CCompositor::ensurePersistentWorkspacesPresent(const std::vector<SWorkspace
         for (auto& ws : toDowngrade) {
             ws->setPersistent(false);
         }
+    }
+}
+
+void CCompositor::ensureWorkspacesOnAssignedMonitors() {
+    for (auto const& ws : getWorkspacesCopy()) {
+        if (!valid(ws) || ws->m_isSpecialWorkspace)
+            continue;
+
+        const auto RULE = g_pConfigManager->getWorkspaceRuleFor(ws);
+        if (RULE.monitor.empty())
+            continue;
+
+        const auto PMONITOR = getMonitorFromString(RULE.monitor);
+        if (!PMONITOR)
+            continue;
+
+        if (ws->m_monitor == PMONITOR)
+            continue;
+
+        Log::logger->log(Log::DEBUG, "ensureWorkspacesOnAssignedMonitors: moving workspace {} to {}", ws->m_name, PMONITOR->m_name);
+        moveWorkspaceToMonitor(ws, PMONITOR, true);
     }
 }
 

@@ -82,7 +82,10 @@ void CMonitor::onConnect(bool noRule) {
     m_zoomAnimProgress->setValueAndWarp(0.F);
     m_zoomAnimFrameCounter = 0;
 
-    g_pEventLoopManager->doLater([] { g_pConfigManager->ensurePersistentWorkspacesPresent(); });
+    g_pEventLoopManager->doLater([] {
+        g_pConfigManager->ensurePersistentWorkspacesPresent();
+        g_pCompositor->ensureWorkspacesOnAssignedMonitors();
+    });
 
     m_listeners.frame      = m_output->events.frame.listen([this] {
         if (m_frameScheduler)
@@ -290,10 +293,16 @@ void CMonitor::onConnect(bool noRule) {
         if (!valid(ws))
             continue;
 
-        if (ws->m_lastMonitor == m_name || g_pCompositor->m_monitors.size() == 1 /* avoid lost workspaces on recover */) {
+        const auto CURRENTMON = ws->m_monitor.lock();
+        const bool ORPHANED   = !CURRENTMON || std::ranges::none_of(g_pCompositor->m_monitors, [&](const auto& mon) { return mon == CURRENTMON; });
+        const bool RETURNING  = ws->m_lastMonitor == m_name;
+        const bool RECOVERY   = g_pCompositor->m_monitors.size() == 1 && ORPHANED; // temporarily recover orphaned workspaces
+
+        if (RETURNING || RECOVERY) {
             g_pCompositor->moveWorkspaceToMonitor(ws, m_self.lock());
             g_pDesktopAnimationManager->startAnimation(ws, CDesktopAnimationManager::ANIMATION_TYPE_IN, true, true);
-            ws->m_lastMonitor = "";
+            if (RETURNING)
+                ws->m_lastMonitor = "";
         }
     }
 
@@ -429,19 +438,24 @@ void CMonitor::onDisconnect(bool destroy) {
     m_enabled             = false;
     m_renderingInitPassed = false;
 
+    std::vector<PHLWORKSPACE> wspToMove;
+    for (auto const& w : g_pCompositor->getWorkspaces()) {
+        if (w->m_monitor == m_self || !w->m_monitor)
+            wspToMove.emplace_back(w.lock());
+    }
+
+    // Preserve ownership across cascaded monitor disconnects.
+    // The first disconnected monitor "owns" where a workspace should return.
+    for (auto const& w : wspToMove) {
+        if (w && w->m_lastMonitor.empty())
+            w->m_lastMonitor = m_name;
+    }
+
     if (BACKUPMON) {
         // snap cursor
         g_pCompositor->warpCursorTo(BACKUPMON->m_position + BACKUPMON->m_transformedSize / 2.F, true);
 
-        // move workspaces
-        std::vector<PHLWORKSPACE> wspToMove;
-        for (auto const& w : g_pCompositor->getWorkspaces()) {
-            if (w->m_monitor == m_self || !w->m_monitor)
-                wspToMove.emplace_back(w.lock());
-        }
-
         for (auto const& w : wspToMove) {
-            w->m_lastMonitor = m_name;
             g_pCompositor->moveWorkspaceToMonitor(w, BACKUPMON);
             g_pDesktopAnimationManager->startAnimation(w, CDesktopAnimationManager::ANIMATION_TYPE_IN, true, true);
         }
@@ -1329,7 +1343,7 @@ void CMonitor::changeWorkspace(const PHLWORKSPACE& pWorkspace, bool internal, bo
         // move pinned windows
         for (auto const& w : g_pCompositor->m_windows) {
             if (w->m_workspace == POLDWORKSPACE && w->m_pinned)
-                w->moveToWorkspace(pWorkspace);
+                w->layoutTarget()->assignToSpace(pWorkspace->m_space);
         }
 
         if (!noFocus && !Desktop::focusState()->monitor()->m_activeSpecialWorkspace &&
@@ -1448,6 +1462,7 @@ void CMonitor::setSpecialWorkspace(const PHLWORKSPACE& pWorkspace) {
     if (const auto PMWSOWNER = pWorkspace->m_monitor.lock(); PMWSOWNER && PMWSOWNER->m_activeSpecialWorkspace == pWorkspace) {
         PMWSOWNER->m_activeSpecialWorkspace.reset();
         g_layoutManager->recalculateMonitor(PMWSOWNER);
+        g_pHyprRenderer->damageMonitor(PMWSOWNER);
         g_pEventManager->postEvent(SHyprIPCEvent{"activespecial", "," + PMWSOWNER->m_name});
         g_pEventManager->postEvent(SHyprIPCEvent{"activespecialv2", ",," + PMWSOWNER->m_name});
 
