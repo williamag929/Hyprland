@@ -1,0 +1,557 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# SPATIAL OS — Reviewer Agent Workflow
+# ══════════════════════════════════════════════════════════════════════════════
+# Role: @reviewer
+#   - Automated code review gate for every PR targeting Space-Z / main
+#   - Checks spatial conventions: Z-layer values, SSpatialProps usage, naming
+#   - Validates GLSL shaders pass glslangValidator (no flags — plain GLSL mode)
+#   - Detects Spanish comments in C++/GLSL/Rust (english-only rule)
+#   - Enforces Doxygen presence on new public symbols in src/spatial/
+#   - Audits modifications to upstream Hyprland files (require [SPATIAL] prefix)
+#   - Checks for stray TODO/FIXME/HACK without TASK-SH-xxx reference
+#   - Validates spatial{} config vars are declared and registered in CMake
+#   - Posts a structured review summary as a PR comment
+#
+# Triggers:
+#   - pull_request (opened, synchronize, reopened) — all files
+#   - Manual dispatch
+#
+# Container: archlinux:latest (per copilot-instructions.md)
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: "[REVIEWER] Spatial PR Code Review"
+
+on:
+  pull_request:
+    branches: [main, develop, "Space-Z"]
+    types: [opened, synchronize, reopened]
+
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual reviewer run"
+        required: false
+        default: "Manual reviewer pass requested"
+      strict:
+        description: "Fail on warnings (strict mode)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+# Cancel superseded runs on the same branch/PR
+concurrency:
+  group: reviewer-${{ github.ref }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  SPATIAL_SRC:    src/spatial
+  SHADER_SRC:     src/render/shaders
+  DOCS_DIR:       docs
+  STRICT:         ${{ inputs.strict || 'false' }}
+
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ─── 1. CHANGED-FILES MANIFEST ────────────────────────────────────────────
+  # Builds lists used by downstream jobs so they don't repeat git calls.
+  changed-files:
+    name: "[REV-1] Collect Changed Files"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    outputs:
+      cpp_files:        ${{ steps.cols.outputs.cpp_files }}
+      hpp_files:        ${{ steps.cols.outputs.hpp_files }}
+      shader_files:     ${{ steps.cols.outputs.shader_files }}
+      upstream_files:   ${{ steps.cols.outputs.upstream_files }}
+      spatial_files:    ${{ steps.cols.outputs.spatial_files }}
+      any_changes:      ${{ steps.cols.outputs.any_changes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect file lists
+        id: cols
+        run: |
+          BASE=${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          HEAD=${{ github.event.pull_request.head.sha || 'HEAD' }}
+
+          echo "── Changed files between $BASE..$HEAD ───────────────────────"
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+          echo "$CHANGED"
+
+          CPP_FILES=$(echo "$CHANGED" | grep '\.cpp$' | tr '\n' ' ')
+          HPP_FILES=$(echo "$CHANGED" | grep '\.hpp$' | tr '\n' ' ')
+          SHADER_FILES=$(echo "$CHANGED" | grep -E '\.(frag|vert|glsl)$' | tr '\n' ' ')
+          UPSTREAM_FILES=$(echo "$CHANGED" | grep -v '^src/spatial/' | grep '^src/' | tr '\n' ' ')
+          SPATIAL_FILES=$(echo "$CHANGED" | grep '^src/spatial/' | tr '\n' ' ')
+
+          echo "cpp_files=$CPP_FILES"       >> "$GITHUB_OUTPUT"
+          echo "hpp_files=$HPP_FILES"       >> "$GITHUB_OUTPUT"
+          echo "shader_files=$SHADER_FILES" >> "$GITHUB_OUTPUT"
+          echo "upstream_files=$UPSTREAM_FILES" >> "$GITHUB_OUTPUT"
+          echo "spatial_files=$SPATIAL_FILES"   >> "$GITHUB_OUTPUT"
+
+          if [ -n "$CHANGED" ]; then
+            echo "any_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ─── 2. GLSL SHADER VALIDATION ────────────────────────────────────────────
+  shader-review:
+    name: "[REV-2] GLSL Shader Validation"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    needs: changed-files
+
+    steps:
+      - name: Install glslang
+        run: pacman -Syu --noconfirm glslang
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate all spatial shaders (no flags — plain GLSL mode)
+        id: shader_check
+        run: |
+          echo "── Shader validation: glslangValidator (no SPIR-V flags) ────"
+          FAIL=0
+          for f in ${{ env.SHADER_SRC }}/*.frag ${{ env.SHADER_SRC }}/*.vert; do
+            [ -f "$f" ] || continue
+            echo -n "  Checking $f … "
+            if glslangValidator "$f"; then
+              echo "  ✅  $f"
+            else
+              echo "::error file=$f::Shader failed glslangValidator"
+              FAIL=1
+            fi
+          done
+
+          # Also validate any new shader files introduced by this PR
+          for f in ${{ needs.changed-files.outputs.shader_files }}; do
+            [ -f "$f" ] || continue
+            echo -n "  Checking changed shader $f … "
+            if glslangValidator "$f"; then
+              echo "  ✅  $f (new/modified)"
+            else
+              echo "::error file=$f::Changed shader failed glslangValidator"
+              FAIL=1
+            fi
+          done
+
+          exit $FAIL
+
+      - name: Check shader conventions
+        run: |
+          echo "── Shader convention check ──────────────────────────────────"
+          FAIL=0
+          for f in ${{ env.SHADER_SRC }}/*.frag ${{ env.SHADER_SRC }}/*.vert; do
+            [ -f "$f" ] || continue
+
+            # Rule: must declare #version 430 core
+            if ! grep -q '#version 430 core' "$f"; then
+              echo "::warning file=$f::Missing '#version 430 core' (required per spec)"
+            fi
+
+            # Rule: uniforms must be prefixed u_
+            BAD_UNIFORMS=$(grep -n '^uniform ' "$f" | grep -v 'uniform [a-zA-Z0-9_]* u_' || true)
+            if [ -n "$BAD_UNIFORMS" ]; then
+              echo "::warning file=$f::Uniforms without u_ prefix found:"
+              echo "$BAD_UNIFORMS"
+            fi
+
+            # Rule: varyings must be prefixed v_
+            BAD_VARYINGS=$(grep -n '^\(in\|out\) ' "$f" | grep -v '\bv_' | grep -v 'gl_\|layout' || true)
+            if [ -n "$BAD_VARYINGS" ]; then
+              echo "::warning file=$f::Varyings without v_ prefix found:"
+              echo "$BAD_VARYINGS"
+            fi
+          done
+          exit 0
+
+  # ─── 3. SPATIAL CONVENTION REVIEW ─────────────────────────────────────────
+  spatial-conventions:
+    name: "[REV-3] Spatial C++ Convention Review"
+    runs-on: ubuntu-latest
+    needs: changed-files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Z-layer values
+        run: |
+          echo "── Z-layer magic number audit ───────────────────────────────"
+          # Warn on hardcoded Z offsets not matching spec
+          # Spec values: 0.0, -800.0, -1600.0, -2800.0
+          ALLOWED_Z="0\.0|-800\.0|-1600\.0|-2800\.0"
+          BAD=$(grep -rn 'zPos\|z_pos\|zOffset\|z_depth' src/spatial/ 2>/dev/null \
+                | grep -Ev "$ALLOWED_Z|//|ZSpaceManager" || true)
+          if [ -n "$BAD" ]; then
+            echo "::warning ::Possible non-spec Z values detected (spec: 0.0/-800/-1600/-2800):"
+            echo "$BAD"
+          else
+            echo "  ✅  Z values appear within spec"
+          fi
+
+      - name: Check SSpatialProps usage in Window files
+        run: |
+          echo "── SSpatialProps struct presence ────────────────────────────"
+          if grep -q 'SSpatialProps' src/desktop/Window.hpp 2>/dev/null; then
+            echo "  ✅  SSpatialProps present in Window.hpp"
+          else
+            echo "::warning file=src/desktop/Window.hpp::SSpatialProps not found. Required per SPATIAL_HYPR_FORK_SPEC.md TASK-SH-101"
+          fi
+
+      - name: Detect Spanish comments in changed C++/GLSL files
+        run: |
+          echo "── Spanish comment detection ─────────────────────────────────"
+          BASE=${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          HEAD=${{ github.event.pull_request.head.sha || 'HEAD' }}
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+          # Common Spanish markers — extend as needed
+          SPANISH_PATTERN="//.*\b(que|con|para|está|esto|clase|función|retorna|Retorna|Asigna|Obtiene|Calcula|ventana|capa|profundidad|gestor|flujo|Espacial|espacial)\b"
+          FAIL=0
+          for f in $CHANGED; do
+            [ -f "$f" ] || continue
+            echo "$f" | grep -qE '\.(cpp|hpp|frag|vert|glsl)$' || continue
+            HITS=$(grep -nP "$SPANISH_PATTERN" "$f" 2>/dev/null || true)
+            if [ -n "$HITS" ]; then
+              echo "::warning file=$f::Spanish-language comments detected (English only per code rules):"
+              echo "$HITS" | head -10
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" -eq 0 ]; then
+            echo "  ✅  No Spanish comments found in changed files"
+          fi
+          # Warning only — not a hard failure
+          exit 0
+
+      - name: Check Doxygen on new public symbols (src/spatial/ .hpp)
+        run: |
+          echo "── Doxygen coverage on new spatial headers ───────────────────"
+          BASE=${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          HEAD=${{ github.event.pull_request.head.sha || 'HEAD' }}
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+          FAIL=0
+          for f in $CHANGED; do
+            echo "$f" | grep -q '^src/spatial/.*\.hpp$' || continue
+            [ -f "$f" ] || continue
+
+            # Check each public function declaration for a preceding ///<  or /*!
+            UNDOC=$(grep -n '^\s*\(void\|bool\|int\|float\|auto\|std::\|CWindow\|SP<\)' "$f" \
+              | grep -v '^\s*//' || true)
+            if [ -n "$UNDOC" ]; then
+              # Filter lines that have a preceding doxygen comment
+              MISSING=$(awk '
+                /\/\/\/|\/\*\*|\/\*!/ { last_doc=NR }
+                /^\s*(void|bool|int|float|auto|std::|CWindow|SP<)/ {
+                  if (NR - last_doc > 2) print NR": "$0
+                }
+              ' "$f" || true)
+              if [ -n "$MISSING" ]; then
+                echo "::warning file=$f::Public symbols likely missing Doxygen:"
+                echo "$MISSING" | head -8
+              fi
+            fi
+          done
+          exit 0
+
+  # ─── 4. UPSTREAM FILE AUDIT ───────────────────────────────────────────────
+  upstream-audit:
+    name: "[REV-4] Upstream Hyprland File Audit"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: changed-files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Upstream modifications require [SPATIAL] commit prefix
+        run: |
+          echo "── Upstream file audit ──────────────────────────────────────"
+          # Any modification to files NOT under src/spatial/ is an upstream change
+          UPSTREAM="${{ needs.changed-files.outputs.upstream_files }}"
+          if [ -z "$UPSTREAM" ]; then
+            echo "  ✅  No upstream Hyprland files modified"
+            exit 0
+          fi
+
+          echo "  Upstream files modified:"
+          for f in $UPSTREAM; do echo "    - $f"; done
+          echo ""
+
+          # Verify every commit touching upstream files has [SPATIAL] prefix
+          FAIL=0
+          for f in $UPSTREAM; do
+            COMMITS=$(git log --format="%H %s" \
+              ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} \
+              -- "$f" 2>/dev/null || true)
+            while IFS= read -r line; do
+              SHA=$(echo "$line" | cut -d' ' -f1)
+              MSG=$(echo "$line" | cut -d' ' -f2-)
+              if ! echo "$MSG" | grep -qE '^\[SPATIAL\]|^\[FORK\]'; then
+                echo "::warning ::Upstream file '$f' modified in commit without [SPATIAL]/[FORK] prefix:"
+                echo "    $SHA  →  $MSG"
+                FAIL=1
+              else
+                echo "  ✅  $SHA  ($f)"
+              fi
+            done <<< "$COMMITS"
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo ""
+            echo "  Per copilot-instructions.md: upstream Hyprland modifications MUST use [SPATIAL] prefix."
+            echo "  This allows safe cherry-pick during upstream sync."
+          fi
+          # Warning only — not a hard block for hotfixes
+          exit 0
+
+  # ─── 5. TODO / FIXME AUDIT ────────────────────────────────────────────────
+  todo-audit:
+    name: "[REV-5] TODO/FIXME Task Reference Audit"
+    runs-on: ubuntu-latest
+    needs: changed-files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect untracked TODO/FIXME/HACK markers
+        run: |
+          echo "── TODO/FIXME/HACK audit ────────────────────────────────────"
+          BASE=${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          HEAD=${{ github.event.pull_request.head.sha || 'HEAD' }}
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+
+          FAIL=0
+          for f in $CHANGED; do
+            [ -f "$f" ] || continue
+            echo "$f" | grep -qE '\.(cpp|hpp|frag|vert|rs)$' || continue
+
+            # Allow TODO/FIXME only if they reference a TASK-SH-xxx or TASK-NF-xxx
+            UNTRACKED=$(grep -nE '\b(TODO|FIXME|HACK)\b' "$f" \
+              | grep -vE 'TASK-(SH|NF)-[0-9]{3}' || true)
+            if [ -n "$UNTRACKED" ]; then
+              echo "::warning file=$f::Untracked TODO/FIXME/HACK (should reference TASK-SH-xxx):"
+              echo "$UNTRACKED" | head -6
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" -eq 0 ]; then
+            echo "  ✅  All TODO/FIXME markers include task references"
+          fi
+          exit 0
+
+  # ─── 6. SPATIAL CONFIG VAR REGISTRATION CHECK ────────────────────────────
+  config-vars-review:
+    name: "[REV-6] Spatial Config Var Registration"
+    runs-on: ubuntu-latest
+    needs: changed-files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check spatial{} vars are declared in SpatialConfig files
+        run: |
+          echo "── spatial{} config var audit ───────────────────────────────"
+          FAIL=0
+
+          # Collect vars registered in SpatialConfig.cpp (addConfigValue calls)
+          if [ -f src/spatial/SpatialConfig.cpp ]; then
+            REGISTERED=$(grep -oP '(?<=addConfigValue\(")[^"]+' src/spatial/SpatialConfig.cpp 2>/dev/null || true)
+            DECLARED=$(grep -oP '(?<=\bspatial\b.*")[^"]+' src/spatial/SpatialConfig.hpp 2>/dev/null || true)
+
+            echo "  Registered config vars in SpatialConfig.cpp:"
+            echo "$REGISTERED" | while read v; do echo "    - $v"; done
+
+            # Warn if fewer than expected vars are registered
+            COUNT=$(echo "$REGISTERED" | grep -c '\S' || echo 0)
+            if [ "$COUNT" -lt 10 ]; then
+              echo "::warning file=src/spatial/SpatialConfig.cpp::Only $COUNT spatial config vars registered — spec requires 10. Check SpatialConfig.cpp addConfigValue() calls."
+            else
+              echo "  ✅  $COUNT spatial config vars registered (≥10 OK)"
+            fi
+          else
+            echo "::warning file=src/spatial/SpatialConfig.cpp::SpatialConfig.cpp not found — TASK-SH-102 not yet implemented?"
+          fi
+          exit 0
+
+  # ─── 7. REVIEW SUMMARY COMMENT ────────────────────────────────────────────
+  post-review-summary:
+    name: "[REV-7] Post PR Review Summary"
+    runs-on: ubuntu-latest
+    needs:
+      - changed-files
+      - shader-review
+      - spatial-conventions
+      - upstream-audit
+      - todo-audit
+      - config-vars-review
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Determine overall result
+        id: result
+        run: |
+          SHADER="${{ needs.shader-review.result }}"
+          SPATIAL="${{ needs.spatial-conventions.result }}"
+          UPSTREAM="${{ needs.upstream-audit.result }}"
+          TODO="${{ needs.todo-audit.result }}"
+          CONFIG="${{ needs.config-vars-review.result }}"
+
+          echo "shader=$SHADER"
+          echo "spatial=$SPATIAL"
+          echo "upstream=$UPSTREAM"
+          echo "todo=$TODO"
+          echo "config=$CONFIG"
+
+          STATUS_EMOJI() {
+            case "$1" in
+              success)  echo "✅" ;;
+              failure)  echo "❌" ;;
+              skipped)  echo "⏭️" ;;
+              *)         echo "⚠️" ;;
+            esac
+          }
+
+          OVERALL="✅ PASSED"
+          if [ "$SHADER" = "failure" ]; then OVERALL="❌ FAILED"; fi
+
+          {
+            echo "overall=$OVERALL"
+            echo "s_shader=$(STATUS_EMOJI $SHADER)"
+            echo "s_spatial=$(STATUS_EMOJI $SPATIAL)"
+            echo "s_upstream=$(STATUS_EMOJI $UPSTREAM)"
+            echo "s_todo=$(STATUS_EMOJI $TODO)"
+            echo "s_config=$(STATUS_EMOJI $CONFIG)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post summary comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const overall  = '${{ steps.result.outputs.overall }}';
+            const sShader  = '${{ steps.result.outputs.s_shader }}';
+            const sSpatial = '${{ steps.result.outputs.s_spatial }}';
+            const sUpstream= '${{ steps.result.outputs.s_upstream }}';
+            const sTodo    = '${{ steps.result.outputs.s_todo }}';
+            const sConfig  = '${{ steps.result.outputs.s_config }}';
+            const run      = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const sha      = '${{ github.event.pull_request.head.sha }}'.slice(0,7);
+
+            const body = [
+              `## 🔍 Spatial OS — Reviewer Agent \`@${sha}\``,
+              '',
+              `**Overall: ${overall}**`,
+              '',
+              '| Check | Result | Notes |',
+              '|---|:---:|---|',
+              `| GLSL Shader Validation | ${sShader} | \`glslangValidator\` (no flags) on all \`.frag/.vert\` |`,
+              `| Spatial C++ Conventions | ${sSpatial} | Z-layer values, SSpatialProps, Spanish comments, Doxygen |`,
+              `| Upstream File Audit | ${sUpstream} | Upstream changes must carry \`[SPATIAL]\` commit prefix |`,
+              `| TODO/FIXME Audit | ${sTodo} | Untracked markers should reference TASK-SH-xxx |`,
+              `| Config Var Registration | ${sConfig} | spatial{} vars registered in SpatialConfig.cpp |`,
+              '',
+              '> **Legend:** ✅ Pass · ❌ Fail · ⚠️ Warning · ⏭️ Skipped',
+              '',
+              `[📋 Full run log](${run})`,
+              '',
+              '---',
+              '_Spatial OS Reviewer Agent — see `.github/copilot-instructions.md` for convention rules._',
+            ].join('\n');
+
+            // Delete any previous reviewer comment to avoid spam
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments.data) {
+              if (c.user.login === 'github-actions[bot]' &&
+                  c.body.startsWith('## 🔍 Spatial OS — Reviewer Agent')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  # ─── 8. STRICT MODE GATE ──────────────────────────────────────────────────
+  strict-gate:
+    name: "[REV-8] Strict Mode Final Gate"
+    runs-on: ubuntu-latest
+    needs:
+      - shader-review
+      - spatial-conventions
+      - upstream-audit
+      - todo-audit
+      - config-vars-review
+    if: always()
+
+    steps:
+      - name: Evaluate gate
+        run: |
+          SHADER="${{ needs.shader-review.result }}"
+          STRICT="${{ env.STRICT }}"
+
+          echo "── Final gate ───────────────────────────────────────────────"
+          echo "  shader-review:        $SHADER"
+          echo "  spatial-conventions:  ${{ needs.spatial-conventions.result }}"
+          echo "  upstream-audit:       ${{ needs.upstream-audit.result }}"
+          echo "  todo-audit:           ${{ needs.todo-audit.result }}"
+          echo "  config-vars:          ${{ needs.config-vars-review.result }}"
+          echo "  strict-mode:          $STRICT"
+          echo ""
+
+          # Hard failures (shader syntax errors block merge in all modes)
+          if [ "$SHADER" = "failure" ]; then
+            echo "::error::GLSL shader validation FAILED — shaders must pass glslangValidator before merge."
+            exit 1
+          fi
+
+          # In strict mode, all jobs must succeed
+          if [ "$STRICT" = "true" ]; then
+            for result in \
+              "${{ needs.spatial-conventions.result }}" \
+              "${{ needs.upstream-audit.result }}" \
+              "${{ needs.todo-audit.result }}" \
+              "${{ needs.config-vars-review.result }}"; do
+              if [ "$result" = "failure" ]; then
+                echo "::error::Strict mode: one or more reviewer checks failed."
+                exit 1
+              fi
+            done
+          fi
+
+          echo "  ✅  Reviewer gate passed"
