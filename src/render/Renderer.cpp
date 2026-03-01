@@ -552,11 +552,7 @@ void CHyprRenderer::renderWorkspaceWindowsSpatial(PHLMONITOR pMonitor, PHLWORKSP
     // Within each bucket sort back-to-front by continuous Z position.
     // This makes mid-animation windows (between discrete layers) composite correctly.
     for (auto& bucket : buckets) {
-        std::sort(bucket.begin(), bucket.end(),
-            [](const PHLWINDOWREF& a, const PHLWINDOWREF& b) {
-                return a->m_sSpatialProps.fZPosition < b->m_sSpatialProps.fZPosition;
-            }
-        );
+        std::sort(bucket.begin(), bucket.end(), [](const PHLWINDOWREF& a, const PHLWINDOWREF& b) { return a->m_sSpatialProps.fZPosition < b->m_sSpatialProps.fZPosition; });
     }
 
     // ── 3. Render deepest-first (painter's algorithm across buckets) ──────────

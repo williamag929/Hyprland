@@ -126,7 +126,7 @@ class CHyprRenderer {
     void renderWorkspace(PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, const Time::steady_tp& now, const CBox& geometry);
     void renderWorkspaceWindowsFullscreen(PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&); // renders workspace windows (fullscreen) (tiled, floating, pinned, but no special)
     void renderWorkspaceWindows(PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&);           // renders workspace windows (no fullscreen) (tiled, floating, pinned, but no special)
-    void renderWorkspaceWindowsSpatial(PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&);   // [SPATIAL] Z-bucket grouped renderer — replaces above when spatial is active
+    void renderWorkspaceWindowsSpatial(PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&);    // [SPATIAL] Z-bucket grouped renderer — replaces above when spatial is active
     void renderAllClientsForWorkspace(PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, const Time::steady_tp& now, const Vector2D& translate = {0, 0}, const float& scale = 1.f);
     void renderWindow(PHLWINDOW, PHLMONITOR, const Time::steady_tp&, bool, eRenderPassMode, bool ignorePosition = false, bool standalone = false);
     void renderLayer(PHLLS, PHLMONITOR, const Time::steady_tp&, bool popups = false, bool lockscreen = false);
