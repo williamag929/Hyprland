@@ -245,6 +245,7 @@ class CConfigManager {
 
     void                                               handlePluginLoads();
     std::string                                        getErrors();
+    void                                               onSpatialConfigReload(); ///< [SPATIAL] TASK-SH-401 — sync spatial{} vars to SpatialInputHandler
 
     // keywords
     std::optional<std::string> handleRawExec(const std::string&, const std::string&);
@@ -323,7 +324,6 @@ class CConfigManager {
     void                                      reloadRuleConfigs();
 
     void                                      postConfigReload(const Hyprlang::CParseResult& result);
-    void                                      onSpatialConfigReload(); ///< [SPATIAL] TASK-SH-401 — sync spatial{} vars to SpatialInputHandler
     SWorkspaceRule                            mergeWorkspaceRules(const SWorkspaceRule&, const SWorkspaceRule&);
 
     void                                      registerConfigVar(const char* name, const Hyprlang::INT& val);
