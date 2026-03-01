@@ -19,14 +19,15 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
             base-devel cmake meson git clang llvm \
-            wayland wayland-protocols wlroots \
-            libxkbcommon libinput libudev libdrm \
-            pixman libxcb xcb-util-image xcb-util-keysyms xcb-util-wm \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            libxcb xcb-util-image xcb-util-keysyms xcb-util-wm \
             xorg-server-xvfb \
             glm spdlog nlohmann-json \
-            gtest google-benchmark \
-            hyprlang hyprland-protocols \
-            glslang vulkan-headers
+            gtest \
+            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprwayland-scanner pkgconf seatd libseat \
+            glslang vulkan-headers systemd
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,7 +47,7 @@ jobs:
 
       - name: Run clang-tidy linting
         run: |
-          # Analizar solo archivos en src/spatial
+          # Lint only files under src/spatial
           clang-tidy --format-style=file \
             src/spatial/*.hpp src/spatial/*.cpp \
             -checks=-*,clang-diagnostic-*,-clang-diagnostic-error,-clang-diagnostic-warning \
@@ -54,9 +55,9 @@ jobs:
 
       - name: Validate GLSL shaders
         run: |
-          glslangValidator -V src/render/shaders/depth_spatial.frag
-          glslangValidator -V src/render/shaders/depth_dof.frag
-          glslangValidator -V src/render/shaders/passthrough_ar.frag
+          glslangValidator src/render/shaders/depth_spatial.frag
+          glslangValidator src/render/shaders/depth_dof.frag
+          glslangValidator src/render/shaders/passthrough_ar.frag
 
       - name: Run unit tests
         run: |
@@ -68,7 +69,7 @@ jobs:
         run: |
           pacman -S --noconfirm valgrind
           cd build
-          # Ejecutar tests bajo valgrind
+          # Run tests under valgrind to detect memory leaks
           ctest -R "spatial" --output-on-failure \
             -E "long|slow" \
             -D ExperimentalMemCheck 2>&1 | grep -E "ERROR|LEAK|Valgrind"
@@ -107,7 +108,14 @@ jobs:
       - name: Install minimal dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel cmake clang wlroots glslang
+          pacman -S --noconfirm \
+            base-devel cmake clang \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprwayland-scanner pkgconf seatd libseat \
+            glslang vulkan-headers systemd
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -125,12 +133,12 @@ jobs:
       - name: Build Release
         run: cmake --build build-release -j$(nproc)
 
-      # Este job NO ejecuta tests completos (solo validación básica)
+      # Release build: shader validation only, no full test suite
       - name: Validate shaders
         run: |
-          glslangValidator -V src/render/shaders/depth_spatial.frag
-          glslangValidator -V src/render/shaders/depth_dof.frag
-          glslangValidator -V src/render/shaders/passthrough_ar.frag
+          glslangValidator src/render/shaders/depth_spatial.frag
+          glslangValidator src/render/shaders/depth_dof.frag
+          glslangValidator src/render/shaders/passthrough_ar.frag
 
   # Job para sincronización con upstream Hyprland
   upstream-sync-check:
@@ -158,14 +166,14 @@ jobs:
 
       - name: Check for conflicting changes with upstream
         run: |
-          # Listar commits que tocan archivos de upstream
-          echo "Commits que tocan archivos upstream:"
+          # List commits touching upstream Hyprland files
+          echo "Commits touching upstream files:"
           git log upstream/main..HEAD --oneline -- \
             src/Compositor.cpp src/render/Renderer.cpp src/Window.hpp \
             src/managers/input/InputManager.cpp || true
 
-          # Validar que todos los commits espaciales tengan prefijo [SPATIAL]
+          # Verify spatial commits carry [SPATIAL] or [FORK] prefix
           if git log upstream/main..HEAD --oneline | grep -v "^\[SPATIAL\]" | grep -v "^\[FORK\]" | head -5; then
-            echo "⚠️ Algunos commits no tienen prefijo [SPATIAL] o [FORK]"
-            echo "Por favor, actualizar mensajes de commits"
+            echo "⚠️ Some commits are missing [SPATIAL] or [FORK] prefix"
+            echo "Please update commit messages per copilot-instructions.md"
           fi
