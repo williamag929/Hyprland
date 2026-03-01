@@ -76,12 +76,12 @@ enum eShaderUniform : uint8_t {
     SHADER_POINTER_INACTIVE_TIMEOUT,
     SHADER_POINTER_LAST_ACTIVE,
     SHADER_POINTER_SIZE,
-    
+
     // [SPATIAL] Z-space rendering uniforms
-    SHADER_SPATIAL_PROJ,        // spatial projection matrix (mat4)
-    SHADER_SPATIAL_VIEW,        // spatial view matrix (mat4)
-    SHADER_Z_DEPTH,             // window Z depth normalized 0-1
-    SHADER_BLUR_RADIUS,         // blur radius in pixels
+    SHADER_SPATIAL_PROJ, // spatial projection matrix (mat4)
+    SHADER_SPATIAL_VIEW, // spatial view matrix (mat4)
+    SHADER_Z_DEPTH,      // window Z depth normalized 0-1
+    SHADER_BLUR_RADIUS,  // blur radius in pixels
 
     SHADER_LAST,
 };
@@ -91,14 +91,14 @@ class CShader {
     CShader();
     ~CShader();
 
-    bool   createProgram(const std::string& vert, const std::string& frag, bool dynamic = false, bool silent = false);
-    void   setUniformInt(eShaderUniform location, GLint v0);
-    void   setUniformFloat(eShaderUniform location, GLfloat v0);
-    void   setUniformFloat2(eShaderUniform location, GLfloat v0, GLfloat v1);
-    void   setUniformFloat3(eShaderUniform location, GLfloat v0, GLfloat v1, GLfloat v2);
-    void   setUniformFloat4(eShaderUniform location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-    void   setUniformMatrix3fv(eShaderUniform location, GLsizei count, GLboolean transpose, std::array<GLfloat, 9> value);
-    void   setUniformMatrix4x2fv(eShaderUniform location, GLsizei count, GLboolean transpose, std::array<GLfloat, 8> value);
+    bool createProgram(const std::string& vert, const std::string& frag, bool dynamic = false, bool silent = false);
+    void setUniformInt(eShaderUniform location, GLint v0);
+    void setUniformFloat(eShaderUniform location, GLfloat v0);
+    void setUniformFloat2(eShaderUniform location, GLfloat v0, GLfloat v1);
+    void setUniformFloat3(eShaderUniform location, GLfloat v0, GLfloat v1, GLfloat v2);
+    void setUniformFloat4(eShaderUniform location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+    void setUniformMatrix3fv(eShaderUniform location, GLsizei count, GLboolean transpose, std::array<GLfloat, 9> value);
+    void setUniformMatrix4x2fv(eShaderUniform location, GLsizei count, GLboolean transpose, std::array<GLfloat, 8> value);
     // [SPATIAL] 4x4 matrix support for perspective projection
     void   setUniformMatrix4fv(eShaderUniform location, GLsizei count, GLboolean transpose, const glm::mat4& value);
     void   setUniform1fv(eShaderUniform location, GLsizei count, const std::vector<float>& value);
@@ -129,8 +129,8 @@ class CShader {
 
     // [SPATIAL] 4x4 matrix data structure
     struct SUniformMatrix4fvData {
-        GLsizei               count     = 0;
-        GLboolean             transpose = false;
+        GLsizei                 count     = 0;
+        GLboolean               transpose = false;
         std::array<GLfloat, 16> value     = {};
     };
 

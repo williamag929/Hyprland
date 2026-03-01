@@ -1445,13 +1445,12 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
     shader = useShader(shader);
 
     // [SPATIAL] Override shader for spatial Z-depth rendering if active
-    if (!usingFinalShader && m_renderData.currentWindow && g_pZSpaceManager && 
-        m_renderData.currentWindow->m_sSpatialProps.bZManaged) {
-        
+    if (!usingFinalShader && m_renderData.currentWindow && g_pZSpaceManager && m_renderData.currentWindow->m_sSpatialProps.bZManaged) {
+
         // Select appropriate spatial shader based on window layer
-        const int layer = m_renderData.currentWindow->m_sSpatialProps.iZLayer;
+        const int   layer = m_renderData.currentWindow->m_sSpatialProps.iZLayer;
         WP<CShader> spatialShader;
-        
+
         if (layer == 3) {
             // Far layer uses depth-of-field for stronger effect
             spatialShader = m_shaders->frag[SH_FRAG_SPATIAL_DOF];
@@ -1459,7 +1458,7 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
             // Standard spatial depth shader for other layers
             spatialShader = m_shaders->frag[SH_FRAG_SPATIAL_DEPTH];
         }
-        
+
         if (spatialShader && spatialShader->program() > 0) {
             shader = useShader(spatialShader);
 
@@ -1473,17 +1472,13 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
             const float zNorm = (m_renderData.currentWindow->m_sSpatialProps.fZPosition - (-2800.0f)) / 2800.0f;
             shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
 
-            const float blurRadius = g_pZSpaceManager->getWindowBlurRadius(
-                static_cast<void*>(m_renderData.currentWindow.lock().get())
-            );
+            const float blurRadius = g_pZSpaceManager->getWindowBlurRadius(static_cast<void*>(m_renderData.currentWindow.lock().get()));
             shader->setUniformFloat(SHADER_BLUR_RADIUS, blurRadius);
 
             // [SPATIAL] The blur texel computation in depth_spatial.frag / depth_dof.frag uses
             // `fullSize` as the render-target (monitor pixel) size, not the window box size.
             // Override here before the downstream rounded-corners block writes window-box dims.
-            shader->setUniformFloat2(SHADER_FULL_SIZE,
-                m_renderData.pMonitor->m_pixelSize.x,
-                m_renderData.pMonitor->m_pixelSize.y);
+            shader->setUniformFloat2(SHADER_FULL_SIZE, m_renderData.pMonitor->m_pixelSize.x, m_renderData.pMonitor->m_pixelSize.y);
         }
     }
 
