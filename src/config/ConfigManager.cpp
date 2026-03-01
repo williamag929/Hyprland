@@ -521,9 +521,10 @@ CConfigManager::CConfigManager() {
     registerConfigVar("misc:disable_scale_notification", Hyprlang::INT{0});
     registerConfigVar("misc:size_limits_tiled", Hyprlang::INT{0});
 
-    // [SPATIAL] Register spatial Z-layer config variables so hyprlang accepts them.
-    // Values are parsed independently by SpatialConfig::loadFromFile() — these
-    // registrations exist only to silence hyprlang's unknown-option errors.
+    // [SPATIAL] TASK-SH-401: Register spatial{} section keys with hyprlang so they
+    // are accepted during config parse and hot-reload.  Values are consumed by
+    // onSpatialConfigReload() which is called from postConfigReload() on every
+    // config load/reload — replacing the old spatialBootCfg raw file reader.
     registerConfigVar("spatial:enabled",               Hyprlang::INT{1});
     registerConfigVar("spatial:z_layers",              Hyprlang::INT{4});
     registerConfigVar("spatial:z_layer_step",          Hyprlang::FLOAT{800.0f});
@@ -532,6 +533,8 @@ CConfigManager::CConfigManager() {
     registerConfigVar("spatial:z_fov_degrees",         Hyprlang::FLOAT{60.0f});
     registerConfigVar("spatial:z_near_plane",          Hyprlang::FLOAT{0.1f});
     registerConfigVar("spatial:z_far_plane",           Hyprlang::FLOAT{10000.0f});
+    registerConfigVar("spatial:ar_passthrough",        Hyprlang::INT{0});    // [SPATIAL] TASK-SH-301/401
+    registerConfigVar("spatial:ar_alpha",              Hyprlang::FLOAT{1.0f}); // [SPATIAL] TASK-SH-301/401
 
     registerConfigVar("group:insert_after_current", Hyprlang::INT{1});
     registerConfigVar("group:focus_removed_window", Hyprlang::INT{1});
@@ -1481,9 +1484,31 @@ void CConfigManager::postConfigReload(const Hyprlang::CParseResult& result) {
     // update layouts
     Layout::Supplementary::algoMatcher()->updateWorkspaceLayouts();
 
+    // [SPATIAL] TASK-SH-401: propagate spatial config to runtime state on every reload
+    onSpatialConfigReload();
+
     Event::bus()->m_events.config.reloaded.emit();
     if (g_pEventManager)
         g_pEventManager->postEvent(SHyprIPCEvent{"configreloaded", ""});
+}
+
+/// [SPATIAL] TASK-SH-401 — Read all spatial{} vars from hyprlang and push them
+/// into the persistent SpatialInputHandler singleton.  Called on every config
+/// load and hot-reload so that `hyprctl reload` picks up changes without a restart.
+void CConfigManager::onSpatialConfigReload() {
+    if (!g_pSpatialInputHandler)
+        return;
+
+    const bool  enabled    = std::any_cast<Hyprlang::INT>  (m_config->getConfigValue("spatial:enabled"))        != 0;
+    const bool  arPassth   = std::any_cast<Hyprlang::INT>  (m_config->getConfigValue("spatial:ar_passthrough")) != 0;
+    const float arAlpha    = std::any_cast<Hyprlang::FLOAT>(m_config->getConfigValue("spatial:ar_alpha"));
+
+    g_pSpatialInputHandler->setEnabled(enabled);
+    g_pSpatialInputHandler->setArPassthrough(arPassth);
+    g_pSpatialInputHandler->setArAlpha(arAlpha);
+
+    Log::logger->log(Log::DEBUG, "[SPATIAL] TASK-SH-401 config reloaded — enabled={} arPassthrough={} arAlpha={:.2f}",
+                     enabled, arPassth, arAlpha);
 }
 
 void CConfigManager::init() {

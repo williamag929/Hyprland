@@ -666,24 +666,10 @@ void CCompositor::initManagers(eManagersInitStage stage) {
                 }
             });
 
-            // [SPATIAL] Propagate enabled flag from $spatial { enabled = ... } in hyprland.conf.
-            // Default is true; set "enabled = false" to disable all Z-navigation at config load.
-            {
-                const char*        xdgCfg  = std::getenv("XDG_CONFIG_HOME");
-                const char*        home    = std::getenv("HOME");
-                const std::string  cfgDir  = xdgCfg ? std::string(xdgCfg) : (home ? std::string(home) + "/.config" : "");
-                Spatial::SpatialConfig spatialBootCfg;
-                if (!cfgDir.empty() && spatialBootCfg.loadFromFile(cfgDir + "/hypr/hyprland.conf")) {
-                    g_pSpatialInputHandler->setEnabled(spatialBootCfg.isEnabled());
-                    if (!spatialBootCfg.isEnabled())
-                        Log::logger->log(Log::DEBUG, "[SPATIAL] Spatial navigation DISABLED via config (enabled = false)");
-                    // [SPATIAL] TASK-SH-301: propagate AR passthrough config to input handler
-                    g_pSpatialInputHandler->setArPassthrough(spatialBootCfg.isArPassthroughEnabled());
-                    g_pSpatialInputHandler->setArAlpha(spatialBootCfg.getArAlpha());
-                    if (spatialBootCfg.isArPassthroughEnabled())
-                        Log::logger->log(Log::DEBUG, "[SPATIAL] AR passthrough enabled (ar_passthrough = 1)");
-                }
-            }
+            // [SPATIAL] TASK-SH-401: spatial config is now consumed by
+            // CConfigManager::onSpatialConfigReload() which fires from postConfigReload()
+            // on every config load/reload.  The raw SpatialConfig file reader that
+            // lived here has been removed — hyprlang is the single source of truth.
 
             g_pConfigManager->init();
 

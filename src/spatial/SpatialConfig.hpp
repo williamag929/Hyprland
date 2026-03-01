@@ -6,7 +6,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // SPATIAL OS: Configuration
 // ══════════════════════════════════════════════════════════════════════════════
-// Parser y gestor de configuración espacial desde hyprlang (sección $spatial)
+// Parser and runtime configuration manager for the spatial{} hyprlang section
 // ══════════════════════════════════════════════════════════════════════════════
 
 namespace Spatial {
@@ -22,7 +22,7 @@ namespace Spatial {
 ///
 /// Example usage in hyprland.conf:
 /// ```
-/// $spatial {
+/// spatial {
 ///     z_layers = 4
 ///     z_layer_step = 800
 ///     z_animation_stiffness = 200
@@ -35,10 +35,15 @@ public:
     SpatialConfig();
     ~SpatialConfig() = default;
 
-    // ── Carga y parsing ───────────────────────────────────────────
-    /// @brief Load configuration from file
+    // ── Load / parse ──────────────────────────────────────────────
+    /// @brief Load configuration from file.
+    /// @deprecated [SPATIAL] TASK-SH-401 — spatial{} is now registered with hyprlang via
+    ///             CConfigManager::registerConfigVar() and consumed via onSpatialConfigReload()
+    ///             on every config load/reload.  This hand-rolled file reader is no longer
+    ///             called from production code and will be removed in a future cleanup pass.
     /// @param configPath  Absolute path to hyprland.conf
     /// @return true if loaded and validated successfully, false on I/O or parse error
+    [[deprecated("Use CConfigManager::onSpatialConfigReload() — TASK-SH-401")]]
     bool loadFromFile(const std::string& configPath);
 
     /// @brief Reload configuration from the previously loaded path (hot-reload)
@@ -49,7 +54,7 @@ public:
     /// @return true after a successful loadFromFile(), false otherwise
     [[nodiscard]] bool isLoaded() const;
 
-    // ── Acceso a parámetros ──────────────────────────────────────
+    // ── Accessors ───────────────────────────────────────────────
     /// @brief Get the number of discrete Z layers
     /// @return Layer count in [1, 16]
     [[nodiscard]] int getZLayerCount() const;
