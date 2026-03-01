@@ -160,7 +160,7 @@ void ZSpaceManager::assignWindowToLayer(CWindow* window, int layer);
 
 ### GLSL (shaders)
 - Version `#version 430 core` in all shaders
-- Validate with `glslangValidator -G` before each commit (`-G` = OpenGL SPIR-V target; these shaders run through wlroots/EGL, not Vulkan)
+- Validate with `glslangValidator` (no flags) before each commit — wlroots compiles these as plain OpenGL GLSL via `glCompileShader()`; SPIR-V flags (`-V`/`-G`) impose layout requirements that don't apply
 - Name uniforms with prefix `u_`, varyings with `v_`
 
 ### Commits
@@ -346,8 +346,8 @@ WAYLAND_DISPLAY=wayland-99 kitty &
 WAYLAND_DISPLAY=wayland-99 firefox &
 
 # Validate shaders before commit
-glslangValidator -G src/render/shaders/depth_spatial.frag
-glslangValidator -G src/render/shaders/depth_dof.frag
+glslangValidator src/render/shaders/depth_spatial.frag
+glslangValidator src/render/shaders/depth_dof.frag
 
 # Tests del módulo spatial
 ctest --test-dir build -R "spatial" --output-on-failure

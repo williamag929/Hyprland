@@ -379,8 +379,8 @@ cmake --build build -j$(nproc) 2>&1 | tee build.log
 grep -i "warning" build.log && echo "⚠️ Warnings found" || echo "✅ Clean build"
 
 # 3. Validate shaders
-glslangValidator -G src/render/shaders/depth_spatial.frag || exit 1
-glslangValidator -G src/render/shaders/depth_dof.frag || exit 1
+glslangValidator src/render/shaders/depth_spatial.frag || exit 1
+glslangValidator src/render/shaders/depth_dof.frag || exit 1
 
 # 4. Run tests
 ctest --test-dir build -R "spatial" --output-on-failure || exit 1
@@ -684,8 +684,8 @@ docker run --rm \
   -v "$(pwd):/home/spatial/Hyprland" \
   spatial-hypr:dev \
   bash -c "cd Hyprland && \
-           glslangValidator -G src/render/shaders/depth_spatial.frag && \
-           glslangValidator -G src/render/shaders/depth_dof.frag"
+           glslangValidator src/render/shaders/depth_spatial.frag && \
+           glslangValidator src/render/shaders/depth_dof.frag"
 
 echo "✅ All tests passed!"
 ```

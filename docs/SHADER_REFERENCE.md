@@ -242,7 +242,7 @@ bash scripts/validate-shaders.sh
 
 **glslangValidator command:**
 ```bash
-glslangValidator -G depth_spatial.frag -o depth_spatial.spv
+glslangValidator depth_spatial.frag
 ```
 
 **Output:**
@@ -374,7 +374,7 @@ glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(SpatialUniformBlock), &params);
 **Debug steps:**
 ```bash
 # Run validator with verbose output
-glslangValidator -G -i depth_spatial.frag
+glslangValidator depth_spatial.frag
 
 # Check shader syntax
 cat src/render/shaders/depth_spatial.frag | grep -n "uniform\|layout\|void"

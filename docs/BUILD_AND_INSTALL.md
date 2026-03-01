@@ -114,9 +114,9 @@ echo $WAYLAND_DISPLAY
 ## 4. Validate Shaders
 
 ```bash
-glslangValidator -G src/render/shaders/depth_spatial.frag
-glslangValidator -G src/render/shaders/depth_dof.frag
-glslangValidator -G src/render/shaders/passthrough_ar.frag
+glslangValidator src/render/shaders/depth_spatial.frag
+glslangValidator src/render/shaders/depth_dof.frag
+glslangValidator src/render/shaders/passthrough_ar.frag
 ```
 
 All three must pass with no errors before running.

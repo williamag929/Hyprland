@@ -304,8 +304,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 
 # Validate shaders (optional, pre-compilation check)
-glslangValidator -G src/render/shaders/depth_spatial.frag
-glslangValidator -G src/render/shaders/depth_dof.frag
+glslangValidator src/render/shaders/depth_spatial.frag
+glslangValidator src/render/shaders/depth_dof.frag
 ```
 
 ### Errors to Watch For

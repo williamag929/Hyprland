@@ -23,7 +23,7 @@ try {
     Write-Host "Installation instructions:"
     Write-Host "  • Windows (pre-built): Download from https://github.com/KhronosGroup/glslang/releases"
     Write-Host "  • Or in Docker container (recommended):"
-    Write-Host "      docker exec spatial-dev bash -c 'glslangValidator -G src/render/shaders/*.frag'"
+    Write-Host "      docker exec spatial-dev bash -c 'glslangValidator src/render/shaders/*.frag'"
     exit 1
 }
 
@@ -57,7 +57,7 @@ foreach ($shader in $shaders | Sort-Object Name) {
     Write-Host -NoNewline "  $($shaderName.PadRight(35)) ... "
     
     try {
-        $output = & glslangValidator -G $shader.FullName 2>&1
+        $output = & glslangValidator $shader.FullName 2>&1
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅" -ForegroundColor Green

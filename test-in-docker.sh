@@ -58,8 +58,8 @@ docker run --rm \
   -v "$(pwd):/home/spatial/Hyprland" \
   -w /home/spatial/Hyprland \
   "$IMAGE_NAME" \
-  bash -c "glslangValidator -G src/render/shaders/depth_spatial.frag && \
-           glslangValidator -G src/render/shaders/depth_dof.frag && \
+  bash -c "glslangValidator src/render/shaders/depth_spatial.frag && \
+           glslangValidator src/render/shaders/depth_dof.frag && \
            echo 'All shaders validated successfully'" || {
     echo "❌ Shader validation failed"
     exit 1
