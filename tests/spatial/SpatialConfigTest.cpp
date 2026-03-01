@@ -12,8 +12,8 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <fcntl.h>    // open, O_WRONLY, O_TRUNC
-#include <unistd.h>   // mkstemp, close, unlink, write
+#include <fcntl.h>  // open, O_WRONLY, O_TRUNC
+#include <unistd.h> // mkstemp, close, unlink, write
 
 #include "spatial/SpatialConfig.hpp"
 
@@ -24,16 +24,15 @@ using namespace Spatial;
 // The file is unlinked when the object goes out of scope.
 // ─────────────────────────────────────────────────────────────────────────────
 class TempConfigFile {
-public:
+  public:
     explicit TempConfigFile(const std::string& content) {
         // mkstemp requires a writable template buffer
-        char tmpl[] = "/tmp/spatial_test_XXXXXX";
-        const int fd = ::mkstemp(tmpl);
+        char      tmpl[] = "/tmp/spatial_test_XXXXXX";
+        const int fd     = ::mkstemp(tmpl);
         EXPECT_NE(fd, -1) << "mkstemp failed: " << ::strerror(errno);
         if (fd != -1) {
-            m_path = tmpl;
-            const ssize_t written = ::write(fd, content.c_str(),
-                                            static_cast<ssize_t>(content.size()));
+            m_path                = tmpl;
+            const ssize_t written = ::write(fd, content.c_str(), static_cast<ssize_t>(content.size()));
             EXPECT_EQ(written, static_cast<ssize_t>(content.size()));
             ::close(fd);
         }
@@ -44,13 +43,17 @@ public:
             ::unlink(m_path.c_str());
     }
 
-    TempConfigFile(const TempConfigFile&)            = delete;
-    TempConfigFile& operator=(const TempConfigFile&) = delete;
+    TempConfigFile(const TempConfigFile&)                             = delete;
+    TempConfigFile&                  operator=(const TempConfigFile&) = delete;
 
-    [[nodiscard]] const std::string& path() const { return m_path; }
-    [[nodiscard]] bool               valid() const { return !m_path.empty(); }
+    [[nodiscard]] const std::string& path() const {
+        return m_path;
+    }
+    [[nodiscard]] bool valid() const {
+        return !m_path.empty();
+    }
 
-private:
+  private:
     std::string m_path;
 };
 
@@ -95,15 +98,15 @@ TEST(SpatialConfig, ReloadReturnsTrueAfterSuccessfulLoad) {
 }
 
 TEST(SpatialConfig, ReloadAfterFileDeletedReturnsFalse) {
-    char tmpl[] = "/tmp/spatial_reload_XXXXXX";
-    const int fd = ::mkstemp(tmpl);
+    char      tmpl[] = "/tmp/spatial_reload_XXXXXX";
+    const int fd     = ::mkstemp(tmpl);
     ASSERT_NE(fd, -1);
     ::close(fd);
 
     SpatialConfig cfg;
     ASSERT_TRUE(cfg.loadFromFile(tmpl));
 
-    ::unlink(tmpl);  // delete the file before reloading
+    ::unlink(tmpl); // delete the file before reloading
 
     EXPECT_FALSE(cfg.reload());
     EXPECT_FALSE(cfg.isLoaded());
@@ -169,8 +172,8 @@ TEST(SpatialConfig, ParsesPartialSection_MissingKeysKeepDefaults) {
     ASSERT_TRUE(cfg.loadFromFile(tmp.path()));
 
     EXPECT_EQ(cfg.getZLayerCount(), 2);
-    EXPECT_FLOAT_EQ(cfg.getZLayerStep(), 800.0f);   // default
-    EXPECT_FLOAT_EQ(cfg.getZFOVDegrees(), 60.0f);   // default
+    EXPECT_FLOAT_EQ(cfg.getZLayerStep(), 800.0f); // default
+    EXPECT_FLOAT_EQ(cfg.getZFOVDegrees(), 60.0f); // default
 }
 
 TEST(SpatialConfig, ParsesValueWithTrailingSemicolon) {
@@ -227,8 +230,8 @@ TEST(SpatialConfig, MalformedIntegerKeepsDefault) {
     ASSERT_TRUE(tmp.valid());
 
     SpatialConfig cfg;
-    EXPECT_TRUE(cfg.loadFromFile(tmp.path()));   // must not throw or crash
-    EXPECT_EQ(cfg.getZLayerCount(), 4);          // default kept
+    EXPECT_TRUE(cfg.loadFromFile(tmp.path())); // must not throw or crash
+    EXPECT_EQ(cfg.getZLayerCount(), 4);        // default kept
 }
 
 TEST(SpatialConfig, MalformedFloatKeepsDefault) {
@@ -397,8 +400,8 @@ TEST(SpatialConfig, ValidNearAndFarKept) {
 
 TEST(SpatialConfig, ReloadPicksUpChangedValues) {
     // Write initial config
-    char tmpl[] = "/tmp/spatial_reload2_XXXXXX";
-    const int fd = ::mkstemp(tmpl);
+    char      tmpl[] = "/tmp/spatial_reload2_XXXXXX";
+    const int fd     = ::mkstemp(tmpl);
     ASSERT_NE(fd, -1);
     const std::string first = "spatial {\n    z_layers = 2\n}\n";
     ::write(fd, first.c_str(), first.size());

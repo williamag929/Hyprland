@@ -13,7 +13,7 @@
 #include <utility>
 
 #include "spatial/SpatialInputHandler.hpp"
-#include "spatial/ZSpaceManager.hpp"   // Z_LAYERS_COUNT
+#include "spatial/ZSpaceManager.hpp" // Z_LAYERS_COUNT
 
 using namespace Spatial;
 
@@ -21,19 +21,19 @@ using namespace Spatial;
 // Helper: records every (newLayer, oldLayer) callback invocation
 // ─────────────────────────────────────────────────────────────────────────────
 struct CallbackRecorder {
-    std::vector<std::pair<int,int>> calls;   // {newLayer, oldLayer}
+    std::vector<std::pair<int, int>> calls; // {newLayer, oldLayer}
 
-    void attach(SpatialInputHandler& handler) {
-        handler.setLayerChangeCallback([this](int next, int prev) {
-            calls.emplace_back(next, prev);
-        });
+    void                             attach(SpatialInputHandler& handler) {
+        handler.setLayerChangeCallback([this](int next, int prev) { calls.emplace_back(next, prev); });
     }
 
     [[nodiscard]] int count() const {
         return static_cast<int>(calls.size());
     }
 
-    void clear() { calls.clear(); }
+    void clear() {
+        calls.clear();
+    }
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -83,7 +83,7 @@ TEST(SpatialInputHandler, SetCurrentLayerNegativeIgnored) {
 TEST(SpatialInputHandler, SetCurrentLayerTooLargeIgnored) {
     SpatialInputHandler h;
     h.setCurrentLayer(1);
-    h.setCurrentLayer(Z_LAYERS_COUNT);   // out of range
+    h.setCurrentLayer(Z_LAYERS_COUNT); // out of range
     EXPECT_EQ(h.getCurrentLayer(), 1);
 }
 
@@ -155,7 +155,7 @@ TEST(SpatialInputHandler, SetThresholdOneAccepted) {
 
 TEST(SpatialInputHandler, NextLayerIncrementsLayer) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -165,33 +165,33 @@ TEST(SpatialInputHandler, NextLayerIncrementsLayer) {
 
 TEST(SpatialInputHandler, NextLayerFiresCallbackWithCorrectArgs) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(1);
     h.processNextLayerKeybind();
 
     ASSERT_EQ(rec.count(), 1);
-    EXPECT_EQ(rec.calls[0].first,  2);   // newLayer
-    EXPECT_EQ(rec.calls[0].second, 1);   // oldLayer
+    EXPECT_EQ(rec.calls[0].first, 2);  // newLayer
+    EXPECT_EQ(rec.calls[0].second, 1); // oldLayer
 }
 
 TEST(SpatialInputHandler, NextLayerAtMaxBoundaryIsNoop) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     const int maxLayer = Z_LAYERS_COUNT - 1;
     h.setCurrentLayer(maxLayer);
     h.processNextLayerKeybind();
 
-    EXPECT_EQ(h.getCurrentLayer(), maxLayer);   // unchanged
-    EXPECT_EQ(rec.count(), 0);                  // no callback fired
+    EXPECT_EQ(h.getCurrentLayer(), maxLayer); // unchanged
+    EXPECT_EQ(rec.count(), 0);                // no callback fired
 }
 
 TEST(SpatialInputHandler, NextLayerFromZeroToMaxStepByStep) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -204,12 +204,12 @@ TEST(SpatialInputHandler, NextLayerFromZeroToMaxStepByStep) {
 
 TEST(SpatialInputHandler, NextLayerBeyondMaxStillNoop) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(Z_LAYERS_COUNT - 1);
     h.processNextLayerKeybind();
-    h.processNextLayerKeybind();   // second call must still be no-op
+    h.processNextLayerKeybind(); // second call must still be no-op
 
     EXPECT_EQ(h.getCurrentLayer(), Z_LAYERS_COUNT - 1);
     EXPECT_EQ(rec.count(), 0);
@@ -228,20 +228,20 @@ TEST(SpatialInputHandler, PrevLayerDecrementsLayer) {
 
 TEST(SpatialInputHandler, PrevLayerFiresCallbackWithCorrectArgs) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(2);
     h.processPrevLayerKeybind();
 
     ASSERT_EQ(rec.count(), 1);
-    EXPECT_EQ(rec.calls[0].first,  1);   // newLayer
-    EXPECT_EQ(rec.calls[0].second, 2);   // oldLayer
+    EXPECT_EQ(rec.calls[0].first, 1);  // newLayer
+    EXPECT_EQ(rec.calls[0].second, 2); // oldLayer
 }
 
 TEST(SpatialInputHandler, PrevLayerAtZeroBoundaryIsNoop) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -253,7 +253,7 @@ TEST(SpatialInputHandler, PrevLayerAtZeroBoundaryIsNoop) {
 
 TEST(SpatialInputHandler, PrevLayerFromMaxToZeroStepByStep) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(Z_LAYERS_COUNT - 1);
@@ -266,7 +266,7 @@ TEST(SpatialInputHandler, PrevLayerFromMaxToZeroStepByStep) {
 
 TEST(SpatialInputHandler, PrevLayerBeyondZeroStillNoop) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -283,19 +283,19 @@ TEST(SpatialInputHandler, PrevLayerBeyondZeroStillNoop) {
 
 TEST(SpatialInputHandler, ScrollWithModifierPassesThrough_NoNavigation) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(1);
     h.processScrollEvent(1.0f, /*hasModifier=*/true);
 
-    EXPECT_EQ(h.getCurrentLayer(), 1);   // unchanged
+    EXPECT_EQ(h.getCurrentLayer(), 1); // unchanged
     EXPECT_EQ(rec.count(), 0);
 }
 
 TEST(SpatialInputHandler, ScrollWithoutModifierNavigates) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -317,7 +317,7 @@ TEST(SpatialInputHandler, ScrollWithoutModifierNavigates) {
 
 TEST(SpatialInputHandler, ScrollUnit_PositiveFiresOnce) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -329,7 +329,7 @@ TEST(SpatialInputHandler, ScrollUnit_PositiveFiresOnce) {
 
 TEST(SpatialInputHandler, ScrollUnit_NegativeFiresOnce) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(2);
@@ -341,7 +341,7 @@ TEST(SpatialInputHandler, ScrollUnit_NegativeFiresOnce) {
 
 TEST(SpatialInputHandler, ScrollHalfUnit_NoFire) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -353,12 +353,12 @@ TEST(SpatialInputHandler, ScrollHalfUnit_NoFire) {
 
 TEST(SpatialInputHandler, ScrollHalfUnit_TwoCalls_FiresOnce) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
-    h.processScrollEvent(0.5f, false);   // accumulate 60
-    h.processScrollEvent(0.5f, false);   // accumulate 120 → fires
+    h.processScrollEvent(0.5f, false); // accumulate 60
+    h.processScrollEvent(0.5f, false); // accumulate 120 → fires
 
     EXPECT_EQ(rec.count(), 1);
     EXPECT_EQ(h.getCurrentLayer(), 1);
@@ -366,7 +366,7 @@ TEST(SpatialInputHandler, ScrollHalfUnit_TwoCalls_FiresOnce) {
 
 TEST(SpatialInputHandler, ScrollTriple_MiddleLayer_FiresThreeTimes) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
@@ -379,7 +379,7 @@ TEST(SpatialInputHandler, ScrollTriple_MiddleLayer_FiresThreeTimes) {
 
 TEST(SpatialInputHandler, ScrollTriple_ClampedAtBoundary) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     // Only 2 steps available from layer 1 (layers: 1→2→3)
@@ -388,19 +388,19 @@ TEST(SpatialInputHandler, ScrollTriple_ClampedAtBoundary) {
 
     // 3 steps requested but only 2 available before hitting Z_LAYERS_COUNT-1
     EXPECT_EQ(h.getCurrentLayer(), Z_LAYERS_COUNT - 1);
-    EXPECT_EQ(rec.count(), Z_LAYERS_COUNT - 1 - 1);  // Z_LAYERS_COUNT=4 → 2 steps
+    EXPECT_EQ(rec.count(), Z_LAYERS_COUNT - 1 - 1); // Z_LAYERS_COUNT=4 → 2 steps
 }
 
 TEST(SpatialInputHandler, AccumulatorPersistsBetweenCalls) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(0);
     // Three sub-threshold calls accumulating to 1.0 total
     h.processScrollEvent(1.0f / 3.0f, false);
     h.processScrollEvent(1.0f / 3.0f, false);
-    EXPECT_EQ(rec.count(), 0);   // 80/120 — not yet
+    EXPECT_EQ(rec.count(), 0); // 80/120 — not yet
 
     h.processScrollEvent(1.0f / 3.0f, false);
     // ~120 accumulated — should fire once (may be off by float epsilon, so allow 0 or 1)
@@ -416,10 +416,10 @@ TEST(SpatialInputHandler, AccumulatorPersistsBetweenCalls) {
 
 TEST(SpatialInputHandler, HalvedThreshold_HalfScrollFiresTwice) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
-    h.setScrollThreshold(60);   // half default
+    h.setScrollThreshold(60); // half default
     h.setCurrentLayer(0);
 
     // scrollY=1.0 → acc += 1.0 * 60 * 1.0 = 60 → fires once
@@ -430,7 +430,7 @@ TEST(SpatialInputHandler, HalvedThreshold_HalfScrollFiresTwice) {
 
 TEST(SpatialInputHandler, DoubleSensitivity_HalfScrollFiresTwice) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setScrollSensitivity(2.0f);
@@ -444,7 +444,7 @@ TEST(SpatialInputHandler, DoubleSensitivity_HalfScrollFiresTwice) {
 
 TEST(SpatialInputHandler, SensitivityPoint1_TenUnitsToFire) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setScrollSensitivity(0.1f);
@@ -466,7 +466,7 @@ TEST(SpatialInputHandler, SensitivityPoint1_TenUnitsToFire) {
 
 TEST(SpatialInputHandler, ReversalDrainsAccumulator) {
     SpatialInputHandler h;
-    CallbackRecorder rec;
+    CallbackRecorder    rec;
     rec.attach(h);
 
     h.setCurrentLayer(1);

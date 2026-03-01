@@ -22,7 +22,7 @@
 #include <algorithm>
 
 #include "spatial/ZSpaceManager.hpp"
-#include "desktop/view/Window.hpp"    // for sizeof(CWindow) and m_sSpatialProps access
+#include "desktop/view/Window.hpp" // for sizeof(CWindow) and m_sSpatialProps access
 
 using namespace Spatial;
 
@@ -31,7 +31,7 @@ using namespace Spatial;
 // Only accesses the POD m_sSpatialProps member via the public pointer.
 // ─────────────────────────────────────────────────────────────────────────────
 class FakeWindow {
-public:
+  public:
     FakeWindow() {
         // Allocate + zero-initialise raw memory of CWindow's size.
         // alignment of CWindow is at most alignof(std::max_align_t).
@@ -49,14 +49,16 @@ public:
     FakeWindow& operator=(const FakeWindow&) = delete;
 
     /// Raw void* passed to ZSpaceManager APIs
-    [[nodiscard]] void* handle() const { return m_pRaw; }
+    [[nodiscard]] void* handle() const {
+        return m_pRaw;
+    }
 
     /// Read back SSpatialProps for assertions
     [[nodiscard]] const Desktop::View::CWindow::SSpatialProps& props() const {
         return reinterpret_cast<const Desktop::View::CWindow*>(m_pRaw)->m_sSpatialProps;
     }
 
-private:
+  private:
     void* m_pRaw = nullptr;
 };
 
@@ -64,16 +66,16 @@ private:
 // Test fixture — creates an initialized ZSpaceManager + 4 fake windows
 // ─────────────────────────────────────────────────────────────────────────────
 class ZSpaceManagerTest : public ::testing::Test {
-protected:
+  protected:
     static constexpr int SCREEN_W = 1920;
     static constexpr int SCREEN_H = 1080;
 
-    ZSpaceManager mgr;
+    ZSpaceManager        mgr;
 
     // Four fake windows — one per layer
     FakeWindow win0, win1, win2, win3;
 
-    void SetUp() override {
+    void       SetUp() override {
         mgr.init(SCREEN_W, SCREEN_H);
     }
 };
@@ -97,7 +99,7 @@ TEST(ZSpaceManagerInit, ReInitOnResolutionChangeIsIdempotent) {
     ZSpaceManager z;
     z.init(1920, 1080);
     EXPECT_TRUE(z.isInitialized());
-    z.init(2560, 1440);  // should not crash
+    z.init(2560, 1440); // should not crash
     EXPECT_TRUE(z.isInitialized());
 }
 
@@ -147,12 +149,12 @@ TEST_F(ZSpaceManagerTest, SetActiveLayerValidRange) {
 
 TEST_F(ZSpaceManagerTest, SetActiveLayerRejectsNegative) {
     EXPECT_FALSE(mgr.setActiveLayer(-1));
-    EXPECT_EQ(mgr.getActiveLayer(), 0);  // unchanged
+    EXPECT_EQ(mgr.getActiveLayer(), 0); // unchanged
 }
 
 TEST_F(ZSpaceManagerTest, SetActiveLayerRejectsOutOfBounds) {
     EXPECT_FALSE(mgr.setActiveLayer(Z_LAYERS_COUNT));
-    EXPECT_EQ(mgr.getActiveLayer(), 0);  // unchanged
+    EXPECT_EQ(mgr.getActiveLayer(), 0); // unchanged
 }
 
 TEST_F(ZSpaceManagerTest, SetActiveLayerUpdatesCameraTarget) {
@@ -218,7 +220,7 @@ TEST_F(ZSpaceManagerTest, ReassignWindowUpdatesLayer) {
 
     mgr.assignWindowToLayer(win0.handle(), 3);
     EXPECT_EQ(mgr.getWindowLayer(win0.handle()), 3);
-    EXPECT_EQ(mgr.getWindowCount(), 1);  // still just 1 entry
+    EXPECT_EQ(mgr.getWindowCount(), 1); // still just 1 entry
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -232,8 +234,8 @@ TEST_F(ZSpaceManagerTest, RemoveWindowDecreasesCount) {
 
     mgr.removeWindow(win0.handle());
     EXPECT_EQ(mgr.getWindowCount(), 1);
-    EXPECT_EQ(mgr.getWindowLayer(win0.handle()), -1);  // gone
-    EXPECT_EQ(mgr.getWindowLayer(win1.handle()), 1);   // still present
+    EXPECT_EQ(mgr.getWindowLayer(win0.handle()), -1); // gone
+    EXPECT_EQ(mgr.getWindowLayer(win1.handle()), 1);  // still present
 }
 
 TEST_F(ZSpaceManagerTest, RemoveWindowNullptrIsNoOp) {
@@ -244,7 +246,7 @@ TEST_F(ZSpaceManagerTest, RemoveWindowNullptrIsNoOp) {
 
 TEST_F(ZSpaceManagerTest, RemoveUnregisteredWindowIsNoOp) {
     mgr.assignWindowToLayer(win0.handle(), 0);
-    mgr.removeWindow(win1.handle());  // never registered
+    mgr.removeWindow(win1.handle()); // never registered
     EXPECT_EQ(mgr.getWindowCount(), 1);
 }
 
@@ -275,7 +277,7 @@ TEST_F(ZSpaceManagerTest, IsPinnedReturnsFalseForUnknownWindow) {
 }
 
 TEST_F(ZSpaceManagerTest, PinWindowNullptrIsNoOp) {
-    mgr.pinWindow(nullptr, true);  // must not crash
+    mgr.pinWindow(nullptr, true); // must not crash
     EXPECT_EQ(mgr.getWindowCount(), 0);
 }
 
@@ -319,7 +321,7 @@ TEST_F(ZSpaceManagerTest, UpdateClampsExcessiveDeltaTime) {
     mgr.assignWindowToLayer(win0.handle(), 2);
 
     for (int i = 0; i < 5; ++i)
-        mgr.update(1.0f);  // would diverge without clamping
+        mgr.update(1.0f); // would diverge without clamping
 
     const float z = mgr.getWindowZ(win0.handle());
     EXPECT_TRUE(std::isfinite(z));
@@ -362,19 +364,19 @@ TEST_F(ZSpaceManagerTest, SortedWindowsReturnAllRegisteredWindows) {
 
 TEST_F(ZSpaceManagerTest, SortedWindowsOrderedBackToFront) {
     // Assign in mixed order
-    mgr.assignWindowToLayer(win0.handle(), 0);  // Z =    0.0  (nearest)
-    mgr.assignWindowToLayer(win1.handle(), 3);  // Z = -2800.0 (deepest)
-    mgr.assignWindowToLayer(win2.handle(), 1);  // Z =  -800.0
-    mgr.assignWindowToLayer(win3.handle(), 2);  // Z = -1600.0
+    mgr.assignWindowToLayer(win0.handle(), 0); // Z =    0.0  (nearest)
+    mgr.assignWindowToLayer(win1.handle(), 3); // Z = -2800.0 (deepest)
+    mgr.assignWindowToLayer(win2.handle(), 1); // Z =  -800.0
+    mgr.assignWindowToLayer(win3.handle(), 2); // Z = -1600.0
 
     const auto sorted = mgr.getSortedWindowsForRender();
     ASSERT_EQ(static_cast<int>(sorted.size()), 4);
 
     // Expected back-to-front order: win1(deepest) → win3 → win2 → win0(nearest)
-    EXPECT_EQ(sorted[0], win1.handle());  // -2800
-    EXPECT_EQ(sorted[1], win3.handle());  // -1600
-    EXPECT_EQ(sorted[2], win2.handle());  //  -800
-    EXPECT_EQ(sorted[3], win0.handle());  //     0
+    EXPECT_EQ(sorted[0], win1.handle()); // -2800
+    EXPECT_EQ(sorted[1], win3.handle()); // -1600
+    EXPECT_EQ(sorted[2], win2.handle()); //  -800
+    EXPECT_EQ(sorted[3], win0.handle()); //     0
 }
 
 TEST_F(ZSpaceManagerTest, SortedWindowsExcludesRemovedWindow) {
@@ -395,8 +397,7 @@ TEST_F(ZSpaceManagerTest, OpacityMatchesLayerConstant) {
     for (int layer = 0; layer < Z_LAYERS_COUNT; ++layer) {
         FakeWindow fw;
         mgr.assignWindowToLayer(fw.handle(), layer);
-        EXPECT_FLOAT_EQ(mgr.getWindowOpacity(fw.handle()), LAYER_OPACITY[layer])
-            << "Layer " << layer;
+        EXPECT_FLOAT_EQ(mgr.getWindowOpacity(fw.handle()), LAYER_OPACITY[layer]) << "Layer " << layer;
         mgr.removeWindow(fw.handle());
     }
 }
@@ -409,8 +410,7 @@ TEST_F(ZSpaceManagerTest, BlurRadiusMatchesLayerConstant) {
     for (int layer = 0; layer < Z_LAYERS_COUNT; ++layer) {
         FakeWindow fw;
         mgr.assignWindowToLayer(fw.handle(), layer);
-        EXPECT_FLOAT_EQ(mgr.getWindowBlurRadius(fw.handle()), LAYER_BLUR_RADIUS[layer])
-            << "Layer " << layer;
+        EXPECT_FLOAT_EQ(mgr.getWindowBlurRadius(fw.handle()), LAYER_BLUR_RADIUS[layer]) << "Layer " << layer;
         mgr.removeWindow(fw.handle());
     }
 }
@@ -427,16 +427,14 @@ TEST_F(ZSpaceManagerTest, SpatialProjectionIsFinite) {
     const glm::mat4 proj = mgr.getSpatialProjection();
     for (int col = 0; col < 4; ++col)
         for (int row = 0; row < 4; ++row)
-            EXPECT_TRUE(std::isfinite(proj[col][row]))
-                << "NaN/Inf at proj[" << col << "][" << row << "]";
+            EXPECT_TRUE(std::isfinite(proj[col][row])) << "NaN/Inf at proj[" << col << "][" << row << "]";
 }
 
 TEST_F(ZSpaceManagerTest, SpatialViewIsFinite) {
     const glm::mat4 view = mgr.getSpatialView();
     for (int col = 0; col < 4; ++col)
         for (int row = 0; row < 4; ++row)
-            EXPECT_TRUE(std::isfinite(view[col][row]))
-                << "NaN/Inf at view[" << col << "][" << row << "]";
+            EXPECT_TRUE(std::isfinite(view[col][row])) << "NaN/Inf at view[" << col << "][" << row << "]";
 }
 
 TEST_F(ZSpaceManagerTest, WindowTransformIsIdentityForUnknownWindow) {
@@ -448,7 +446,7 @@ TEST_F(ZSpaceManagerTest, WindowTransformIsIdentityForUnknownWindow) {
 }
 
 TEST_F(ZSpaceManagerTest, WindowTransformIncludesZTranslation) {
-    mgr.assignWindowToLayer(win0.handle(), 2);  // Z = -1600
+    mgr.assignWindowToLayer(win0.handle(), 2); // Z = -1600
 
     // Run frames so the window position converges to the layer target
     for (int i = 0; i < 2000; ++i)
@@ -468,7 +466,7 @@ TEST_F(ZSpaceManagerTest, AssignWindowSetsSSpatialPropsLayerAndZ) {
 
     EXPECT_EQ(win0.props().iZLayer, 1);
     EXPECT_FLOAT_EQ(win0.props().fZPosition, LAYER_Z_POSITIONS[1]);
-    EXPECT_FLOAT_EQ(win0.props().fZTarget,   LAYER_Z_POSITIONS[1]);
+    EXPECT_FLOAT_EQ(win0.props().fZTarget, LAYER_Z_POSITIONS[1]);
     EXPECT_TRUE(win0.props().bZManaged);
 }
 
@@ -479,7 +477,7 @@ TEST_F(ZSpaceManagerTest, UpdateSyncsSSpatialPropsAfterAnimation) {
         mgr.update(0.016f);
 
     EXPECT_NEAR(win0.props().fZPosition, LAYER_Z_POSITIONS[3], 1.0f);
-    EXPECT_NEAR(win0.props().fZTarget,   LAYER_Z_POSITIONS[3], 1.0f);
+    EXPECT_NEAR(win0.props().fZTarget, LAYER_Z_POSITIONS[3], 1.0f);
     EXPECT_NEAR(win0.props().fZVelocity, 0.0f, 0.01f);
 }
 
@@ -493,8 +491,8 @@ TEST_F(ZSpaceManagerTest, PinWindowReflectedInSSpatialProps) {
 }
 
 TEST_F(ZSpaceManagerTest, DepthNormIsNormalizedAfterUpdate) {
-    mgr.assignWindowToLayer(win0.handle(), 0);  // nearest  → fDepthNorm ~1.0
-    mgr.assignWindowToLayer(win3.handle(), 3);  // deepest  → fDepthNorm ~0.0
+    mgr.assignWindowToLayer(win0.handle(), 0); // nearest  → fDepthNorm ~1.0
+    mgr.assignWindowToLayer(win3.handle(), 3); // deepest  → fDepthNorm ~0.0
 
     for (int i = 0; i < 2000; ++i)
         mgr.update(0.016f);
@@ -514,7 +512,7 @@ TEST_F(ZSpaceManagerTest, ConcurrentAssignAndQueryDoesNotCrash) {
 
     constexpr int ITERATIONS = 100;
 
-    auto writer = [&]() {
+    auto          writer = [&]() {
         for (int i = 0; i < ITERATIONS; ++i) {
             mgr.assignWindowToLayer(win0.handle(), i % Z_LAYERS_COUNT);
             mgr.update(0.016f);
@@ -611,10 +609,8 @@ TEST_F(ZSpaceManagerTest, FovIncreasesAsCameraMovesDeeper) {
         mgr.update(0.016f);
 
     const float fov = mgr.getCurrentFov();
-    EXPECT_NEAR(fov, Spatial::Z_FOV_MAX_DEGREES, 0.5f)
-        << "FOV after settling at layer 3 should be ~Z_FOV_MAX_DEGREES";
-    EXPECT_GT(fov, Spatial::Z_FOV_DEGREES)
-        << "FOV at deepest layer must exceed base FOV";
+    EXPECT_NEAR(fov, Spatial::Z_FOV_MAX_DEGREES, 0.5f) << "FOV after settling at layer 3 should be ~Z_FOV_MAX_DEGREES";
+    EXPECT_GT(fov, Spatial::Z_FOV_DEGREES) << "FOV at deepest layer must exceed base FOV";
 }
 
 TEST_F(ZSpaceManagerTest, FovMidLayerIsInterpolated) {
@@ -625,7 +621,7 @@ TEST_F(ZSpaceManagerTest, FovMidLayerIsInterpolated) {
         mgr.update(0.016f);
 
     const float fov = mgr.getCurrentFov();
-    EXPECT_GT(fov, Spatial::Z_FOV_DEGREES)     << "mid-range FOV must exceed base";
+    EXPECT_GT(fov, Spatial::Z_FOV_DEGREES) << "mid-range FOV must exceed base";
     EXPECT_LT(fov, Spatial::Z_FOV_MAX_DEGREES) << "mid-range FOV must be below max";
 }
 
@@ -639,6 +635,5 @@ TEST_F(ZSpaceManagerTest, FovReturnsToBseWhenCameraReturnToLayer0) {
     for (int i = 0; i < 500; ++i)
         mgr.update(0.016f);
 
-    EXPECT_NEAR(mgr.getCurrentFov(), Spatial::Z_FOV_DEGREES, 0.5f)
-        << "FOV must recover to Z_FOV_DEGREES after camera returns to layer 0";
+    EXPECT_NEAR(mgr.getCurrentFov(), Spatial::Z_FOV_DEGREES, 0.5f) << "FOV must recover to Z_FOV_DEGREES after camera returns to layer 0";
 }
