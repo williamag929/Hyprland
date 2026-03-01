@@ -1671,7 +1671,7 @@ void CWindow::mapWindow() {
 
     // [SPATIAL] Assign window to default Foreground layer on map
     if (g_pZSpaceManager) {
-        g_pZSpaceManager->assignWindowToLayer(this, 0);  // 0 = Foreground layer
+        g_pZSpaceManager->assignWindowToLayer(this, 0); // 0 = Foreground layer
     }
 
     // check for token

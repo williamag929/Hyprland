@@ -891,12 +891,12 @@ void CInputManager::onMouseWheel(IPointer::SAxisEvent e, SP<IPointer> pointer) {
     //   - passEvent is consumed (set false) only when a discrete layer step actually fired.
     //     Scroll at a boundary layer (already top/bottom) still passes through to the surface.
     if (passEvent && e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && g_pSpatialInputHandler) {
-        const bool   hasMod      = (getModsFromAllKBs() != 0);
-        const int    layerBefore = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
+        const bool hasMod      = (getModsFromAllKBs() != 0);
+        const int  layerBefore = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
 
         g_pSpatialInputHandler->processScrollEvent(static_cast<float>(e.delta), hasMod);
 
-        const int    layerAfter  = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
+        const int layerAfter = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
 
         // Consume the scroll event only when it produced an actual layer transition
         // and no modifier was held (modifier passes through unconditionally above)

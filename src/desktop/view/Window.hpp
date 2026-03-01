@@ -250,13 +250,13 @@ namespace Desktop::View {
 
         // ── SPATIAL OS: Z-Space properties ──────────────────────────────────────
         struct SSpatialProps {
-            float  fZPosition   = 0.0f;   // current Z position (world units)
-            float  fZTarget     = 0.0f;   // target Z position (for animation)
-            float  fZVelocity   = 0.0f;   // current Z animation velocity
-            int    iZLayer      = 0;      // discrete layer (0=front, N=back)
-            float  fDepthNorm   = 0.0f;   // 0.0-1.0, normalized for shaders
-            bool   bZPinned     = false;  // true = does not move with camera
-            bool   bZManaged    = true;   // false = app controls its own Z
+            float fZPosition = 0.0f;  // current Z position (world units)
+            float fZTarget   = 0.0f;  // target Z position (for animation)
+            float fZVelocity = 0.0f;  // current Z animation velocity
+            int   iZLayer    = 0;     // discrete layer (0=front, N=back)
+            float fDepthNorm = 0.0f;  // 0.0-1.0, normalized for shaders
+            bool  bZPinned   = false; // true = does not move with camera
+            bool  bZManaged  = true;  // false = app controls its own Z
         } m_sSpatialProps;
         // ───────────────────────────────────────────────────────────────────────
 
