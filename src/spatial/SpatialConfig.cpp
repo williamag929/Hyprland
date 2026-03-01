@@ -1,4 +1,5 @@
 #include "SpatialConfig.hpp"
+#include "../config/ConfigManager.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -37,11 +38,13 @@ bool SpatialConfig::loadFromFile(const std::string& configPath) {
 }
 
 bool SpatialConfig::reload() {
-    if (m_sConfigPath.empty())
+    if (!g_pConfigManager) {
+        std::cerr << "[SpatialConfig] reload() called before ConfigManager is initialized\n";
         return false;
-    // Reset loaded flag so callers can detect a failed reload
-    m_bLoaded = false;
-    return loadFromFile(m_sConfigPath);
+    }
+    g_pConfigManager->onSpatialConfigReload();
+    m_bLoaded = true;
+    return true;
 }
 
 bool SpatialConfig::isLoaded() const {
