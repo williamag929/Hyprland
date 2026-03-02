@@ -48,11 +48,24 @@ namespace Spatial {
             return false;
         }
 
-        if (!loadFromFile(m_sConfigPath)) {
+        // Inline the file-read path to avoid calling the deprecated loadFromFile().
+        std::ifstream file(m_sConfigPath);
+        if (!file.is_open()) {
+            std::cerr << "[SpatialConfig] reload() failed to open: " << m_sConfigPath << "\n";
             m_bLoaded = false;
             return false;
         }
 
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        file.close();
+
+        if (!parseConfigSection(buffer.str())) {
+            m_bLoaded = false;
+            return false;
+        }
+
+        m_bLoaded = true;
         return true;
     }
 
