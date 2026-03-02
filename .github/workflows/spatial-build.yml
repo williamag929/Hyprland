@@ -1,17 +1,16 @@
 name: Spatial OS Build and Test
-# TODO(spatial-ci): Cleanup pass later.
-# Keep ci.yaml as baseline upstream CI and trim this workflow to Spatial-only checks
-# (shaders/tests/coverage/upstream-compat) to reduce maintenance drift.
+# Spatial-only checks. Baseline build/style validation lives in ci.yaml.
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
 jobs:
-  build:
-    name: Build Spatial-Hypr Fork
+  spatial-checks:
+    name: Spatial Checks (Shaders/Tests/Coverage)
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
@@ -43,14 +42,6 @@ jobs:
       - name: Build project
         run: cmake --build build -j$(nproc)
 
-      - name: Run clang-tidy linting
-        run: |
-          # Lint only files under src/spatial
-          clang-tidy --format-style=file \
-            src/spatial/*.hpp src/spatial/*.cpp \
-            -checks=-*,clang-diagnostic-*,-clang-diagnostic-error,-clang-diagnostic-warning \
-            -- -I/usr/include -I./build
-
       - name: Validate GLSL shaders
         run: |
           glslangValidator src/render/shaders/depth_spatial.frag
@@ -62,16 +53,6 @@ jobs:
           cd build
           ctest -R "spatial" --output-on-failure -VV
 
-      - name: Run memory leak checks (valgrind)
-        continue-on-error: true
-        run: |
-          pacman -S --noconfirm valgrind
-          cd build
-          # Run tests under valgrind to detect memory leaks
-          ctest -R "spatial" --output-on-failure \
-            -E "long|slow" \
-            -D ExperimentalMemCheck 2>&1 | grep -E "ERROR|LEAK|Valgrind"
-
       - name: Generate test coverage report
         run: |
           pacman -S --noconfirm lcov
@@ -80,59 +61,6 @@ jobs:
                --output-file coverage.info \
                --include "*spatialOS*" \
                --exclude "*test*"
-
-      - name: Build package
-        run: |
-          cd build
-          cpack -G TGZ
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: spatial-hypr-build-${{ matrix.system }}
-          path: |
-            build/*.tar.gz
-            build/compile_commands.json
-
-  # Job opcional para verificar compilación en modo Release
-  build-release:
-    name: Release Build
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout repository actions
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/actions
-
-      - name: Setup base dependencies
-        uses: ./.github/actions/setup_base
-
-      - name: Install spatial workflow extras
-        run: |
-          pacman --noconfirm --noprogressbar -Sy \
-            nlohmann-json vulkan-headers
-
-      - name: Configure CMake for Release
-        run: |
-          cmake -B build-release \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DENABLE_SPATIAL=ON \
-            -DENABLE_TESTS=OFF
-
-      - name: Build Release
-        run: cmake --build build-release -j$(nproc)
-
-      # Release build: shader validation only, no full test suite
-      - name: Validate shaders
-        run: |
-          glslangValidator src/render/shaders/depth_spatial.frag
-          glslangValidator src/render/shaders/depth_dof.frag
-          glslangValidator src/render/shaders/passthrough_ar.frag
 
   # Job para sincronización con upstream Hyprland
   upstream-sync-check:
