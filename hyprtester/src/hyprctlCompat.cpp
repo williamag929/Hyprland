@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <csignal>
 #include <cerrno>
+#include <cstring>
 #include <print>
 #include <hyprutils/memory/Casts.hpp>
 using namespace Hyprutils::Memory;
@@ -98,14 +99,16 @@ std::string getFromSocket(const std::string& cmd) {
     strncpy(serverAddress.sun_path, socketPath.c_str(), sizeof(serverAddress.sun_path) - 1);
 
     if (connect(SERVERSOCKET, rc<sockaddr*>(&serverAddress), SUN_LEN(&serverAddress)) < 0) {
-        std::println("Couldn't connect to {}. (3)", socketPath);
+        std::println("Couldn't connect to {}. (3) errno={} ({})", socketPath, errno, strerror(errno));
+        close(SERVERSOCKET);
         return "";
     }
 
     auto sizeWritten = write(SERVERSOCKET, cmd.c_str(), cmd.length());
 
     if (sizeWritten < 0) {
-        std::println("Couldn't write (4)");
+        std::println("Couldn't write (4) errno={} ({})", errno, strerror(errno));
+        close(SERVERSOCKET);
         return "";
     }
 
@@ -115,9 +118,13 @@ std::string getFromSocket(const std::string& cmd) {
     sizeWritten = read(SERVERSOCKET, buffer, 8192);
 
     if (sizeWritten < 0) {
-        if (errno == EWOULDBLOCK)
-            std::println("Hyprland IPC didn't respond in time");
-        std::println("Couldn't read (5)");
+        if (errno == EWOULDBLOCK || errno == EAGAIN)
+            std::println("Hyprland IPC didn't respond in time (EWOULDBLOCK)");
+        else if (errno == ECONNRESET)
+            std::println("Hyprland IPC connection reset (compositor may have crashed)");
+        else
+            std::println("Couldn't read (5) errno={} ({})", errno, strerror(errno));
+        close(SERVERSOCKET);
         return "";
     }
 
@@ -126,7 +133,8 @@ std::string getFromSocket(const std::string& cmd) {
     while (sizeWritten == 8192) {
         sizeWritten = read(SERVERSOCKET, buffer, 8192);
         if (sizeWritten < 0) {
-            std::println("Couldn't read (5)");
+            std::println("Couldn't read (5) errno={} ({})", errno, strerror(errno));
+            close(SERVERSOCKET);
             return "";
         }
         reply += std::string(buffer, sizeWritten);

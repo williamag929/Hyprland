@@ -2111,4 +2111,69 @@ inline static const std::vector<SConfigOptionDescription> CONFIG_OPTIONS = {
         .data        = SConfigOptionDescription::SBoolData{true},
     },
 
+    /*
+     * spatial:
+     */
+
+    SConfigOptionDescription{
+        .value       = "spatial:enabled",
+        .description = "enable the spatial 3D compositor mode",
+        .type        = CONFIG_OPTION_BOOL,
+        .data        = SConfigOptionDescription::SBoolData{true},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_layers",
+        .description = "number of Z depth layers",
+        .type        = CONFIG_OPTION_INT,
+        .data        = SConfigOptionDescription::SRangeData{4, 1, 16},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_layer_step",
+        .description = "depth step in world units between adjacent Z layers",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 800.0, .min = 1.0, .max = 10000.0},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_animation_stiffness",
+        .description = "spring stiffness for Z-axis camera animation",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 200.0, .min = 1.0, .max = 2000.0},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_animation_damping",
+        .description = "spring damping for Z-axis camera animation",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 20.0, .min = 0.1, .max = 200.0},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_fov_degrees",
+        .description = "perspective field-of-view angle in degrees for 3D rendering",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 60.0, .min = 10.0, .max = 170.0},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_near_plane",
+        .description = "near clipping plane distance for 3D perspective projection",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 0.1, .min = 0.01, .max = 10.0},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:z_far_plane",
+        .description = "far clipping plane distance for 3D perspective projection",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 10000.0, .min = 100.0, .max = 100000.0},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:ar_passthrough",
+        .description = "enable AR passthrough mode (render world behind windows)",
+        .type        = CONFIG_OPTION_BOOL,
+        .data        = SConfigOptionDescription::SBoolData{false},
+    },
+    SConfigOptionDescription{
+        .value       = "spatial:ar_alpha",
+        .description = "alpha (opacity) multiplier for windows in AR passthrough mode",
+        .type        = CONFIG_OPTION_FLOAT,
+        .data        = SConfigOptionDescription::SFloatData{.value = 1.0, .min = 0.0, .max = 1.0},
+    },
+
 };
