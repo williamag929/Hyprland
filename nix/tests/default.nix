@@ -12,10 +12,15 @@ in {
         kitty
         wl-clipboard
         xeyes
+        # Mesa provides software (llvmpipe) OpenGL/EGL for XWayland GLAMOR
+        mesa
       ];
 
       # Enabled by default for some reason
       services.speechd.enable = false;
+
+      # Enable software OpenGL/EGL for XWayland GLAMOR support in the VM
+      hardware.graphics.enable = true;
 
       environment.variables = {
         "AQ_TRACE" = "1";
@@ -23,6 +28,9 @@ in {
         "XDG_RUNTIME_DIR" = "/tmp";
         "XDG_CACHE_HOME" = "/tmp";
         "KITTY_CONFIG_DIRECTORY" = "/etc/kitty";
+        # Force llvmpipe software rendering so XWayland GLAMOR initialises
+        # successfully even without a hardware GPU in the CI QEMU VM.
+        "LIBGL_ALWAYS_SOFTWARE" = "1";
       };
 
       environment.etc."kitty/kitty.conf".text = ''

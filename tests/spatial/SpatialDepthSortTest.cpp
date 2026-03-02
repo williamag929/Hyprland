@@ -22,8 +22,8 @@
 #include <cstring>
 #include <vector>
 
-#include "spatial/ZSpaceManager.hpp"       // Z_LAYERS_COUNT, LAYER_Z_POSITIONS
-#include "desktop/view/Window.hpp"         // SSpatialProps
+#include "spatial/ZSpaceManager.hpp" // Z_LAYERS_COUNT, LAYER_Z_POSITIONS
+#include "desktop/view/Window.hpp"   // SSpatialProps
 
 using namespace Spatial;
 
@@ -39,8 +39,7 @@ struct MiniFakeWindow {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: replicate the bucket assignment from renderWorkspaceWindowsSpatial
 // ─────────────────────────────────────────────────────────────────────────────
-static std::array<std::vector<const MiniFakeWindow*>, Z_LAYERS_COUNT>
-assignToBuckets(const std::vector<MiniFakeWindow>& windows) {
+static std::array<std::vector<const MiniFakeWindow*>, Z_LAYERS_COUNT> assignToBuckets(const std::vector<MiniFakeWindow>& windows) {
     std::array<std::vector<const MiniFakeWindow*>, Z_LAYERS_COUNT> buckets;
     for (auto const& w : windows) {
         int layer = w.props.iZLayer;
@@ -56,11 +55,7 @@ assignToBuckets(const std::vector<MiniFakeWindow>& windows) {
 // ─────────────────────────────────────────────────────────────────────────────
 static void sortBuckets(std::array<std::vector<const MiniFakeWindow*>, Z_LAYERS_COUNT>& buckets) {
     for (auto& bucket : buckets) {
-        std::sort(bucket.begin(), bucket.end(),
-            [](const MiniFakeWindow* a, const MiniFakeWindow* b) {
-                return a->props.fZPosition < b->props.fZPosition;
-            }
-        );
+        std::sort(bucket.begin(), bucket.end(), [](const MiniFakeWindow* a, const MiniFakeWindow* b) { return a->props.fZPosition < b->props.fZPosition; });
     }
 }
 
@@ -76,8 +71,7 @@ TEST(SpatialDepthSortTest, AllLayersAssignToCorrectBucket) {
     auto buckets = assignToBuckets(windows);
 
     for (int i = 0; i < Z_LAYERS_COUNT; ++i) {
-        EXPECT_EQ(buckets[static_cast<size_t>(i)].size(), 1u)
-            << "Layer " << i << " bucket should have exactly 1 window";
+        EXPECT_EQ(buckets[static_cast<size_t>(i)].size(), 1u) << "Layer " << i << " bucket should have exactly 1 window";
         EXPECT_EQ(buckets[static_cast<size_t>(i)][0]->props.iZLayer, i);
     }
 }
@@ -88,8 +82,7 @@ TEST(SpatialDepthSortTest, NegativeLayerClampedToForeground) {
 
     auto buckets = assignToBuckets(windows);
 
-    EXPECT_EQ(buckets[0].size(), 1u)
-        << "iZLayer=-1 should fall into bucket[0] (foreground)";
+    EXPECT_EQ(buckets[0].size(), 1u) << "iZLayer=-1 should fall into bucket[0] (foreground)";
     for (size_t i = 1; i < Z_LAYERS_COUNT; ++i)
         EXPECT_TRUE(buckets[i].empty());
 }
@@ -100,8 +93,7 @@ TEST(SpatialDepthSortTest, BeyondMaxLayerClampedToForeground) {
 
     auto buckets = assignToBuckets(windows);
 
-    EXPECT_EQ(buckets[0].size(), 1u)
-        << "iZLayer=" << Z_LAYERS_COUNT << " should fall into bucket[0]";
+    EXPECT_EQ(buckets[0].size(), 1u) << "iZLayer=" << Z_LAYERS_COUNT << " should fall into bucket[0]";
 }
 
 TEST(SpatialDepthSortTest, LargeOutOfRangeLayerClampedToForeground) {
@@ -143,12 +135,12 @@ TEST(SpatialDepthSortTest, SortWithinBucketIsBackToFront) {
     // Three windows at layer 1, with different continuous Z positions
     // (mid-animation between layers)
     std::vector<MiniFakeWindow> windows(3);
-    windows[0].props.iZLayer   = 1;
-    windows[0].props.fZPosition = -500.0f;  // closer to camera than layer 1 target (-800)
-    windows[1].props.iZLayer   = 1;
-    windows[1].props.fZPosition = -900.0f;  // slightly past target
-    windows[2].props.iZLayer   = 1;
-    windows[2].props.fZPosition = -800.0f;  // exactly at layer 1 target
+    windows[0].props.iZLayer    = 1;
+    windows[0].props.fZPosition = -500.0f; // closer to camera than layer 1 target (-800)
+    windows[1].props.iZLayer    = 1;
+    windows[1].props.fZPosition = -900.0f; // slightly past target
+    windows[2].props.iZLayer    = 1;
+    windows[2].props.fZPosition = -800.0f; // exactly at layer 1 target
 
     auto buckets = assignToBuckets(windows);
     sortBuckets(buckets);
@@ -178,10 +170,8 @@ TEST(SpatialDepthSortTest, DeepestLayerHasLowestZPosition) {
     // Verify that LAYER_Z_POSITIONS constants reflect the painter's algorithm assumption:
     // layer N-1 (far) has the most negative Z (rendered first = behind everything)
     for (int i = 0; i < Z_LAYERS_COUNT - 1; ++i) {
-        EXPECT_GT(LAYER_Z_POSITIONS[static_cast<size_t>(i)],
-                  LAYER_Z_POSITIONS[static_cast<size_t>(i + 1)])
-            << "Layer " << i << " Z=" << LAYER_Z_POSITIONS[static_cast<size_t>(i)]
-            << " should be greater than layer " << (i + 1)
+        EXPECT_GT(LAYER_Z_POSITIONS[static_cast<size_t>(i)], LAYER_Z_POSITIONS[static_cast<size_t>(i + 1)])
+            << "Layer " << i << " Z=" << LAYER_Z_POSITIONS[static_cast<size_t>(i)] << " should be greater than layer " << (i + 1)
             << " Z=" << LAYER_Z_POSITIONS[static_cast<size_t>(i + 1)];
     }
 }
@@ -216,7 +206,7 @@ TEST(SpatialDepthSortTest, EmptyBucketsDoNotContributeToRenderOrder) {
 
     auto buckets = assignToBuckets(windows);
 
-    int nonEmptyCount = 0;
+    int  nonEmptyCount = 0;
     for (auto const& b : buckets) {
         if (!b.empty())
             ++nonEmptyCount;

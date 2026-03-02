@@ -2,6 +2,8 @@
 
 #include <dlfcn.h>
 #include <ranges>
+#include <signal.h>
+#include <pthread.h>
 #include "../config/ConfigManager.hpp"
 #include "../debug/HyprCtl.hpp"
 #include "../managers/eventLoop/EventLoopManager.hpp"
@@ -73,6 +75,26 @@ std::expected<CPlugin*, std::string> CPluginSystem::loadPluginInternal(const std
         Log::logger->log(Log::ERR, " [PluginSystem] Cannot load a plugin twice!");
         return std::unexpected("Cannot load a plugin twice!");
     }
+
+    // Block SIGUSR1 for the duration of plugin loading.
+    // The event-loop watchdog delivers SIGUSR1 to unwind timed-out events by
+    // throwing std::exception() from a signal handler.  Throwing from a signal
+    // handler while the stack contains C frames without EH tables (dlopen,
+    // PLUGIN_INIT) causes std::terminate.  Blocking the signal here prevents
+    // the watchdog from interrupting this synchronous critical section; the
+    // signal will be delivered (if pending) once we restore the original mask.
+    sigset_t oldMask, blockMask;
+    sigemptyset(&blockMask);
+    sigaddset(&blockMask, SIGUSR1);
+    pthread_sigmask(SIG_BLOCK, &blockMask, &oldMask);
+
+    // Restore signal mask on all return paths via RAII.
+    struct SSigMaskGuard {
+        sigset_t* old;
+        ~SSigMaskGuard() {
+            pthread_sigmask(SIG_SETMASK, old, nullptr);
+        }
+    } sigGuard{&oldMask};
 
     auto* const PLUGIN = m_loadedPlugins.emplace_back(makeUnique<CPlugin>()).get();
 

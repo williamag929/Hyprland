@@ -206,12 +206,12 @@ void CShader::getUniformLocations() {
     m_uniformLocations[SHADER_POINTER_INACTIVE_TIMEOUT]  = getUniform("pointer_inactive_timeout");
     m_uniformLocations[SHADER_POINTER_LAST_ACTIVE]       = getUniform("pointer_last_active");
     m_uniformLocations[SHADER_POINTER_SIZE]              = getUniform("pointer_size");
-    
+
     // [SPATIAL] Z-space rendering uniforms
-    m_uniformLocations[SHADER_SPATIAL_PROJ]  = getUniform("u_spatialProj");
-    m_uniformLocations[SHADER_SPATIAL_VIEW]  = getUniform("u_spatialView");
-    m_uniformLocations[SHADER_Z_DEPTH]       = getUniform("u_zDepth");
-    m_uniformLocations[SHADER_BLUR_RADIUS]   = getUniform("u_blurRadius");
+    m_uniformLocations[SHADER_SPATIAL_PROJ] = getUniform("u_spatialProj");
+    m_uniformLocations[SHADER_SPATIAL_VIEW] = getUniform("u_spatialView");
+    m_uniformLocations[SHADER_Z_DEPTH]      = getUniform("u_zDepth");
+    m_uniformLocations[SHADER_BLUR_RADIUS]  = getUniform("u_blurRadius");
 }
 
 void CShader::createVao() {
@@ -359,10 +359,10 @@ void CShader::setUniformMatrix4fv(eShaderUniform location, GLsizei count, GLbool
     if (m_uniformLocations.at(location) == -1)
         return;
 
-    auto& cached = uniformStatus.at(location);
-    
+    auto&                   cached = uniformStatus.at(location);
+
     std::array<GLfloat, 16> floatArray;
-    const float* ptr = glm::value_ptr(value);
+    const float*            ptr = glm::value_ptr(value);
     for (int i = 0; i < 16; ++i)
         floatArray[i] = ptr[i];
 
