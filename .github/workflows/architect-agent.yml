@@ -249,12 +249,13 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
-            base-devel cmake clang llvm \
-            wayland wayland-protocols \
-            libxkbcommon libinput libdrm \
-            pixman glm spdlog nlohmann-json \
-            hyprlang hyprland-protocols \
-            glslang
+            base-devel cmake clang llvm git \
+            wayland wayland-protocols libdrm mesa \
+            libxkbcommon libinput pixman \
+            glm spdlog nlohmann-json \
+            glslang \
+            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprwayland-scanner pkgconf seatd libseat systemd
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -355,11 +356,11 @@ jobs:
           for shader in "${SHADERS[@]}"; do
             if [ -f "$shader" ]; then
               echo -n "  $shader ... "
-              if glslangValidator -V "$shader" > /dev/null 2>&1; then
+              if glslangValidator "$shader" > /dev/null 2>&1; then
                 echo "✅"
               else
                 echo "❌"
-                glslangValidator -V "$shader"
+                glslangValidator "$shader"
                 FAIL=1
               fi
             else
@@ -382,11 +383,11 @@ jobs:
             for f in $CHANGED; do
               [ -f "$f" ] || continue
               echo -n "  $f ... "
-              if glslangValidator -V "$f" > /dev/null 2>&1; then
+              if glslangValidator "$f" > /dev/null 2>&1; then
                 echo "✅"
               else
                 echo "❌"
-                glslangValidator -V "$f"
+                glslangValidator "$f"
                 FAIL=1
               fi
             done
@@ -514,11 +515,12 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
             base-devel cmake clang git \
-            wayland wayland-protocols libdrm \
+            wayland wayland-protocols libdrm mesa \
             libxkbcommon libinput pixman \
             glm spdlog nlohmann-json \
             glslang \
-            hyprlang hyprland-protocols
+            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprwayland-scanner pkgconf seatd libseat systemd
 
       - name: Checkout
         uses: actions/checkout@v4

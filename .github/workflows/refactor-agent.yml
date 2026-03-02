@@ -259,12 +259,13 @@ jobs:
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
-            base-devel cmake clang llvm \
-            wayland wayland-protocols libdrm \
+            base-devel cmake clang llvm git \
+            wayland wayland-protocols libdrm mesa \
             libxkbcommon libinput pixman \
             glm spdlog nlohmann-json \
             glslang hyprlang hyprland-protocols \
-            aquamarine hyprutils hyprwayland-scanner pkgconf
+            aquamarine hyprutils hyprwayland-scanner pkgconf \
+            seatd libseat systemd
 
       - name: Checkout
         uses: actions/checkout@v4
