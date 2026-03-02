@@ -1,6 +1,7 @@
 #!/bin/sh
 
 SHADERS_SRC="./src/render/shaders/glsl"
+SPATIAL_SHADERS_SRC="./src/render/shaders"
 
 echo "-- Generating shader includes"
 
@@ -14,8 +15,23 @@ echo 'static const std::map<std::string, std::string> SHADERS = {' >> ./src/rend
 
 for filename in `ls ${SHADERS_SRC}`; do
 	echo "--	${filename}"
-	
+
 	{ echo 'R"#('; cat ${SHADERS_SRC}/${filename}; echo ')#"'; } > ./src/render/shaders/${filename}.inc
+	echo "{\"${filename}\"," >> ./src/render/shaders/Shaders.hpp
+	echo "#include \"./${filename}.inc\"" >> ./src/render/shaders/Shaders.hpp
+	echo "}," >> ./src/render/shaders/Shaders.hpp
+done
+
+# Extra spatial shaders that are not under glsl/
+for filepath in ${SPATIAL_SHADERS_SRC}/*.frag; do
+	if [ ! -f "${filepath}" ]; then
+		continue
+	fi
+
+	filename=$(basename "${filepath}")
+	echo "--	${filename}"
+
+	{ echo 'R"#('; cat "${filepath}"; echo ')#"'; } > ./src/render/shaders/${filename}.inc
 	echo "{\"${filename}\"," >> ./src/render/shaders/Shaders.hpp
 	echo "#include \"./${filename}.inc\"" >> ./src/render/shaders/Shaders.hpp
 	echo "}," >> ./src/render/shaders/Shaders.hpp
