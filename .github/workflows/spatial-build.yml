@@ -1,4 +1,7 @@
 name: Spatial OS Build and Test
+# TODO(spatial-ci): Cleanup pass later.
+# Keep ci.yaml as baseline upstream CI and trim this workflow to Spatial-only checks
+# (shaders/tests/coverage/upstream-compat) to reduce maintenance drift.
 
 on:
   push:
@@ -14,26 +17,20 @@ jobs:
       image: archlinux:latest
 
     steps:
-      - name: Update system and install dependencies
-        run: |
-          sed -i 's/SigLevel    = Required DatabaseOptional/SigLevel    = Optional TrustAll/' /etc/pacman.conf
-          pacman --noconfirm --noprogressbar -Syyu
-          pacman --noconfirm --noprogressbar -Sy \
-            base-devel cmake meson git clang llvm \
-            wayland wayland-protocols libdrm mesa \
-            libxkbcommon libinput pixman \
-            libxcb xcb-util-image xcb-util-keysyms xcb-util-wm \
-            xorg-server-xvfb \
-            glm spdlog nlohmann-json \
-            gtest \
-            hyprlang hyprcursor hyprland-protocols aquamarine hyprutils \
-            hyprwayland-scanner pkgconf seatd \
-            glslang vulkan-headers systemd
-
-      - name: Checkout repository
+      - name: Checkout repository actions
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          sparse-checkout: .github/actions
+
+      - name: Setup base dependencies
+        uses: ./.github/actions/setup_base
+        with:
+          INSTALL_XORG_PKGS: true
+
+      - name: Install spatial workflow extras
+        run: |
+          pacman --noconfirm --noprogressbar -Sy \
+            llvm nlohmann-json vulkan-headers xorg-server-xvfb
 
       - name: Configure CMake
         run: |
@@ -106,23 +103,18 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Install minimal dependencies
-        run: |
-          sed -i 's/SigLevel    = Required DatabaseOptional/SigLevel    = Optional TrustAll/' /etc/pacman.conf
-          pacman --noconfirm --noprogressbar -Syyu
-          pacman --noconfirm --noprogressbar -Sy \
-            base-devel cmake clang \
-            wayland wayland-protocols libdrm mesa \
-            libxkbcommon libinput pixman \
-            glm spdlog nlohmann-json \
-            hyprlang hyprcursor hyprland-protocols aquamarine hyprutils \
-            hyprwayland-scanner pkgconf seatd \
-            glslang vulkan-headers systemd
-
-      - name: Checkout repository
+      - name: Checkout repository actions
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          sparse-checkout: .github/actions
+
+      - name: Setup base dependencies
+        uses: ./.github/actions/setup_base
+
+      - name: Install spatial workflow extras
+        run: |
+          pacman --noconfirm --noprogressbar -Sy \
+            nlohmann-json vulkan-headers
 
       - name: Configure CMake for Release
         run: |
