@@ -39,9 +39,20 @@ jobs:
       - name: Check exit status
         run: grep 0 result/exit_status
 
+      - name: Collect Hyprland crash reports
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p crash-reports
+          if [ -d /tmp/hyprland ]; then
+            find /tmp/hyprland -maxdepth 1 -type f -name 'hyprlandCrashReport*.txt' -exec cp {} crash-reports/ \;
+          fi
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: logs
-          path: result
+          path: |
+            result
+            crash-reports
