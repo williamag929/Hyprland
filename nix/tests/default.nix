@@ -14,6 +14,7 @@ in {
         xeyes
         # Mesa provides software (llvmpipe) OpenGL/EGL for XWayland GLAMOR
         mesa
+        mesa.drivers
       ];
 
       # Enabled by default for some reason
