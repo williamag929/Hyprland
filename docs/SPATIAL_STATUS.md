@@ -1,7 +1,7 @@
 # Spatial OS — Implementation Status
 
 > Current state of Spatial Hyprland fork development  
-> Last Updated: February 28, 2026  
+> Last Updated: March 2, 2026  
 > Version: 0.2.0 (All P0 Tasks Complete)
 
 ---
@@ -250,7 +250,56 @@ src/
 - `SpatialInputHandler::setEnabled()` propagated at boot from config
 - AR passthrough state (`setArPassthrough`, `setArAlpha`) propagated at boot
 
+### TASK-SH-105: Z Navigation (Scroll + Keybinds) — Validation Snapshot
+
+- Wheel scroll routing is active in `InputManager::onMouseWheel()` with modifier pass-through and boundary-safe event consumption.
+- Keybind dispatchers are registered: `spatial_next_layer`, `spatial_prev_layer`, `spatial_layer`.
+- Layer changes are wired through `SpatialInputHandler` callback into `ZSpaceManager::setActiveLayer()` plus monitor damage refresh.
+- Focused automated validation passed (March 2, 2026):
+  - `SpatialInputHandler.NextLayerIncrementsLayer`
+  - `SpatialInputHandler.PrevLayerDecrementsLayer`
+  - `SpatialInputHandler.ScrollWithModifierPassesThrough_NoNavigation`
+  - `SpatialInputHandler.ScrollWithoutModifierNavigates`
+- Result: **TASK-SH-105 behavior validated in code and unit tests**.
+
+### TASK-SH-104: Renderer Perspective + Depth Sorting — Validation Snapshot
+
+- Spatial render path is active via `renderWorkspaceWindowsSpatial()` when spatial navigation is enabled.
+- Z-bucket depth sorting is implemented: per-layer bucket partition, deepest-first iteration, and per-bucket `fZPosition` ordering.
+- Spatial shader uniforms are uploaded in the active shader path (`u_zDepth`, `u_blurRadius`), with per-frame projection/view matrix propagation.
+- Focused automated validation passed (March 2, 2026):
+  - `SpatialDepthSortTest.*` (10 tests)
+  - `ZSpaceManagerTest.SpatialProjectionIsFinite`
+  - `ZSpaceManagerTest.SpatialViewIsFinite`
+- Result: **TASK-SH-104 behavior validated in code and unit tests**.
+
 ### Phase 9: Z-Bucket Renderer + FOV Lerp (TASK-SH-201 / TASK-SH-202)
+
+**TASK-SH-201 — Validation Snapshot (March 2, 2026):**
+- Code path validated: `renderWorkspaceWindowsSpatial()` buckets windows by `iZLayer`, sorts by `fZPosition`, and renders deepest-first with MAIN → POPUP → FLOATING ordering.
+- Focused automated validation passed:
+  - `SpatialDepthSortTest.*` (10/10 passing)
+- Result: **TASK-SH-201 behavior validated in code and unit tests**.
+
+**TASK-SH-202 — Validation Snapshot (March 2, 2026):**
+- FOV lerp validated in `ZSpaceManager::update()` via `t = clamp(-cameraZ / 2800, 0, 1)` and `m_fCurrentFov` interpolation from 60° to 75°.
+- Projection path validated via `getSpatialProjection()` consuming `m_fCurrentFov`.
+- Focused automated validation passed:
+  - `ZSpaceManagerTest.FovIsBaseAtLayer0`
+  - `ZSpaceManagerTest.FovIncreasesAsCameraMovesDeeper`
+  - `ZSpaceManagerTest.FovMidLayerIsInterpolated`
+  - `ZSpaceManagerTest.FovReturnsToBseWhenCameraReturnToLayer0`
+- Result: **TASK-SH-202 behavior validated in code and unit tests**.
+
+### Validation Matrix (Spatial Tasks)
+
+| Task | Scope | Status | Validation Evidence | Validated On |
+|------|-------|--------|---------------------|--------------|
+| TASK-SH-103 | Spatial shaders compile and integrate | ✅ Validated | `glslangValidator` passes for `depth_spatial.frag` and `depth_dof.frag` | 2026-03-02 |
+| TASK-SH-104 | Perspective + depth sorting render path | ✅ Validated | `SpatialDepthSortTest.*` + finite projection/view tests | 2026-03-02 |
+| TASK-SH-105 | Scroll + keybind Z navigation | ✅ Validated | Focused `SpatialInputHandler` scroll/layer tests (4/4 passing) | 2026-03-02 |
+| TASK-SH-201 | Z-bucket grouped renderer ordering | ✅ Validated | `SpatialDepthSortTest.*` (10/10 passing) | 2026-03-02 |
+| TASK-SH-202 | Per-frame FOV lerp | ✅ Validated | 4 focused FOV interpolation tests passing | 2026-03-02 |
 
 **TASK-SH-201 — `renderWorkspaceWindowsSpatial()`:**
 - Replaces single intra-class sort with full Z-bucket cross-class renderer
@@ -259,7 +308,7 @@ src/
 - Render order: deepest bucket first; within each bucket: MAIN → POPUP → FLOATING
 - Focused window deferred per-bucket (not globally)
 - Guard: falls back to `renderWorkspaceWindows` when spatial disabled
-- 9 unit tests in `tests/spatial/SpatialDepthSortTest.cpp`
+- 10 unit tests in `tests/spatial/SpatialDepthSortTest.cpp`
 
 **TASK-SH-202 — Per-frame FOV Lerp:**
 - `Z_FOV_MAX_DEGREES = 75.0f` — widens from 60° (layer 0) to 75° (layer 3)
@@ -297,30 +346,18 @@ src/
 
 ### Current Implementation
 
-1. **No Config Integration** — All parameters hardcoded
-   - Layer count: 4 (hardcoded)
-   - Z positions: 0, -800, -1600, -2800 (hardcoded)
-   - Spring constants: stiffness=200, damping=20 (hardcoded)
+1. **Testing Depth Still Incomplete**
+  - Visual regression scenarios not fully automated yet
+  - No repeatable FPS/perf benchmark report in CI artifacts
+  - Full valgrind matrix not yet documented in this status page
 
-2. **No Window Assignment Logic** — All windows default to layer 0
-   - No automatic layer assignment by app class
-   - No focus-based layer promotion
-   - No workspace-specific layer memory
+2. **Runtime Introspection Is Limited**
+  - `hyprctl` spatial introspection/controls still not exposed
+  - Spatial debug telemetry is mainly log-based today
 
-3. **No Keybinds** — Only scroll works
-   - Can't move windows between layers manually
-   - Can't jump to specific layer
-   - No keyboard-only navigation
-
-4. **No hyprctl Integration** — No runtime inspection
-   - Can't query current layer state
-   - Can't change settings without restart
-   - No debug information exposure
-
-5. **Limited Error Handling** — Assumes happy path
-   - No validation of Z values
-   - No bounds checking on layer indices
-   - No fallback if ZSpaceManager init fails
+3. **Window Layer Policy Is Basic**
+  - Default behavior is conservative foreground assignment
+  - Per-app automatic layer policy is still a future enhancement
 
 ### Platform Constraints
 
@@ -335,7 +372,7 @@ src/
 
 ### For Continued Development
 
-**Step 1: Validate Build (Linux/Docker Required)**
+**Step 1: Validate Build + Shaders (Linux/Docker Required)**
 
 ```bash
 # Option A: Docker (from Windows/any OS)
@@ -350,12 +387,18 @@ cd ~/Hyprland
 cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++
 cmake --build build -j$(nproc)
 
-# Validate shaders
-glslangValidator -V src/render/shaders/depth_spatial.frag
-glslangValidator -V src/render/shaders/depth_dof.frag
+# Validate shaders (OpenGL GLSL mode)
+glslangValidator src/render/shaders/depth_spatial.frag
+glslangValidator src/render/shaders/depth_dof.frag
 ```
 
-**Step 2: Test Initialization (Headless Mode)**
+**Step 2: Validate Spatial Test Suite**
+
+```bash
+ctest --test-dir build -R "spatial" --output-on-failure
+```
+
+**Step 3: Test Initialization (Headless Mode)**
 
 ```bash
 # Run without display
@@ -368,7 +411,7 @@ WLR_RENDERER=pixman \
 #           "ZSpaceManager initialized with dimensions"
 ```
 
-**Step 3: Test Nested (Visual Validation)**
+**Step 4: Test Nested (Visual Validation)**
 
 ```bash
 # Requires existing Wayland/X11 session
@@ -382,17 +425,14 @@ WAYLAND_DISPLAY=wayland-99 firefox &
 # Expected: Windows should blur/fade when scrolling
 ```
 
-**Step 4: Fix Compilation Issues**
+**Step 5: Run Memory + Perf Checks**
 
-Common expected issues:
-- Missing CMakeLists.txt entries for src/spatial/
-- GLM include paths
-- Shader file paths in OpenGL.cpp
-- Missing pthread linking
+```bash
+# valgrind pass for spatial-related tests
+valgrind --leak-check=full --error-exitcode=1 ./build/hyprland_gtests --gtest_filter="*Spatial*"
 
-**Step 5: Implement Configuration Parser**
-
-Integrate SpatialConfig with Hyprland's hyprlang system.
+# profile nested session for frame-time/FPS stability (manual capture)
+```
 
 ---
 
@@ -517,7 +557,7 @@ Integrate SpatialConfig with Hyprland's hyprlang system.
 ### Minimum Viable Product (MVP)
 
 - [x] Code compiles without errors
-- [ ] Shaders compile with glslangValidator ← **NEXT**
+- [x] Shaders compile with glslangValidator
 - [ ] Runs in headless mode
 - [ ] Scroll changes window blur/fade
 - [ ] No memory leaks (valgrind clean)
@@ -525,8 +565,8 @@ Integrate SpatialConfig with Hyprland's hyprlang system.
 
 ### Full Feature Complete
 
-- [ ] Configuration via hyprland.conf
-- [ ] Keybind support
+- [x] Configuration via hyprland.conf
+- [x] Keybind support
 - [ ] Per-app layer assignment
 - [ ] hyprctl integration
 - [ ] Performance profiled (<1ms overhead)
@@ -586,4 +626,4 @@ Integrate SpatialConfig with Hyprland's hyprlang system.
 ---
 
 *Spatial OS — Status Document*  
-*All P0 tasks complete — February 28, 2026*
+*All P0 tasks complete — March 2, 2026*

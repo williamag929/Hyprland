@@ -968,7 +968,11 @@ jobs:
 
 ---
 
-## Roadmap Summary
+## Roadmap Summary (Historical Snapshot)
+
+> ⚠️ This week-by-week timeline reflects the original Phase 1 execution plan/history.
+> For current completion and pending items, use `docs/SPATIAL_STATUS.md`
+> and `docs/SPATIAL_CHANGES_FINAL.md` as source of truth.
 
 ```
 Week 1   TASK-SH-001 + TASK-SH-101
