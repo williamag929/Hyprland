@@ -1,3 +1,4 @@
+#version 430 core
 // ════════════════════════════════════════════════════════════════════════════
 // SPATIAL OS — AR Passthrough Blend Shader
 // TASK-SH-301 | src/render/shaders/passthrough_ar.frag
@@ -23,8 +24,6 @@
 // When compositor pixels are fully transparent the camera shows through,
 // making windows appear to float over the real world in passthrough AR.
 // ════════════════════════════════════════════════════════════════════════════
-
-#version 430 core
 
 layout(binding = 0) uniform sampler2D u_tex;          // compositor window stack render texture
 layout(binding = 1) uniform sampler2D u_arCameraTex;  // XR runtime camera passthrough texture

@@ -1,3 +1,4 @@
+#version 300 es
 // SPATIAL OS: Depth Spatial Shader
 // Version: 0.1.0
 //
@@ -14,8 +15,6 @@
 //   alpha       (float)    : base window opacity (Hyprland standard)
 //   tex         (sampler2D): window texture
 //   fullSize    (vec2)     : screen resolution (Hyprland standard)
-
-#version 300 es
 
 precision highp float;
 in vec2 v_texcoord;

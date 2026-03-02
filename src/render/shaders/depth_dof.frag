@@ -1,3 +1,4 @@
+#version 300 es
 // SPATIAL OS: Depth of Field Shader
 // Version: 0.1.0
 //
@@ -13,8 +14,6 @@
 //   u_blurRadius   (float)     : max blur radius in pixels
 //   tex            (sampler2D) : window texture
 //   fullSize       (vec2)      : screen resolution (Hyprland standard)
-
-#version 300 es
 
 precision highp float;
 in vec2 v_texcoord;
