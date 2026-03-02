@@ -156,6 +156,9 @@ CKeybindManager::CKeybindManager() {
     m_dispatchers["global"]                         = global;
     m_dispatchers["setprop"]                        = setProp;
     m_dispatchers["forceidle"]                      = forceIdle;
+    m_dispatchers["spatial_next_layer"]             = spatialNextLayer;
+    m_dispatchers["spatial_prev_layer"]             = spatialPrevLayer;
+    m_dispatchers["spatial_layer"]                  = spatialLayer;
 
     m_scrollTimer.reset();
 
@@ -1567,6 +1570,64 @@ SDispatchResult CKeybindManager::focusUrgentOrLast(std::string args) {
         return {.success = false, .error = "Window not found"};
 
     switchToWindow(PWINDOWURGENT ? PWINDOWURGENT : PWINDOWPREV);
+
+    return {};
+}
+
+SDispatchResult CKeybindManager::spatialNextLayer(std::string args) {
+    if (!g_pZSpaceManager || !g_pSpatialInputHandler)
+        return {.success = false, .error = "Spatial manager is not initialized"};
+
+    if (!g_pSpatialInputHandler->isEnabled())
+        return {.success = false, .error = "Spatial navigation is disabled (set spatial:enabled = true)"};
+
+    g_pSpatialInputHandler->processNextLayerKeybind();
+    return {};
+}
+
+SDispatchResult CKeybindManager::spatialPrevLayer(std::string args) {
+    if (!g_pZSpaceManager || !g_pSpatialInputHandler)
+        return {.success = false, .error = "Spatial manager is not initialized"};
+
+    if (!g_pSpatialInputHandler->isEnabled())
+        return {.success = false, .error = "Spatial navigation is disabled (set spatial:enabled = true)"};
+
+    g_pSpatialInputHandler->processPrevLayerKeybind();
+    return {};
+}
+
+SDispatchResult CKeybindManager::spatialLayer(std::string args) {
+    if (!g_pZSpaceManager || !g_pSpatialInputHandler)
+        return {.success = false, .error = "Spatial manager is not initialized"};
+
+    if (!g_pSpatialInputHandler->isEnabled())
+        return {.success = false, .error = "Spatial navigation is disabled (set spatial:enabled = true)"};
+
+    const auto trimmedArgs = trim(args);
+    if (trimmedArgs.empty())
+        return {.success = false, .error = "spatial_layer: missing layer index"};
+
+    size_t parsedChars = 0;
+    int    targetLayer = 0;
+    try {
+        targetLayer = std::stoi(trimmedArgs, &parsedChars);
+    } catch (const std::exception&) { return {.success = false, .error = std::format("spatial_layer: invalid layer '{}'", trimmedArgs)}; }
+
+    if (parsedChars != trimmedArgs.size())
+        return {.success = false, .error = std::format("spatial_layer: invalid layer '{}'", trimmedArgs)};
+
+    if (targetLayer < 0 || targetLayer >= Spatial::Z_LAYERS_COUNT)
+        return {.success = false, .error = std::format("spatial_layer: out of range {} (valid: 0..{})", targetLayer, Spatial::Z_LAYERS_COUNT - 1)};
+
+    if (!g_pZSpaceManager->setActiveLayer(targetLayer))
+        return {.success = false, .error = std::format("spatial_layer: failed to switch to layer {}", targetLayer)};
+
+    g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
+
+    if (g_pHyprRenderer && g_pCompositor) {
+        for (auto const& m : g_pCompositor->m_monitors)
+            g_pHyprRenderer->damageMonitor(m);
+    }
 
     return {};
 }

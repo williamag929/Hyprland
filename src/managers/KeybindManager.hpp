@@ -240,6 +240,9 @@ class CKeybindManager {
     static SDispatchResult event(std::string);
     static SDispatchResult setProp(std::string);
     static SDispatchResult forceIdle(std::string);
+    static SDispatchResult spatialNextLayer(std::string);
+    static SDispatchResult spatialPrevLayer(std::string);
+    static SDispatchResult spatialLayer(std::string);
 
     friend class CCompositor;
     friend class CInputManager;
