@@ -37,12 +37,22 @@ namespace Spatial {
     }
 
     bool SpatialConfig::reload() {
-        if (!g_pConfigManager) {
-            std::cerr << "[SpatialConfig] reload() called before ConfigManager is initialized\n";
+        if (g_pConfigManager) {
+            g_pConfigManager->onSpatialConfigReload();
+            m_bLoaded = true;
+            return true;
+        }
+
+        if (m_sConfigPath.empty()) {
+            std::cerr << "[SpatialConfig] reload() called before first successful load\n";
             return false;
         }
-        g_pConfigManager->onSpatialConfigReload();
-        m_bLoaded = true;
+
+        if (!loadFromFile(m_sConfigPath)) {
+            m_bLoaded = false;
+            return false;
+        }
+
         return true;
     }
 
