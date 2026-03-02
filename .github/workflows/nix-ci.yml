@@ -2,8 +2,8 @@ name: Nix
 
 on: [push, pull_request, workflow_dispatch]
 
-env:
-  LIBGL_ALWAYS_SOFTWARE: "1"
+#env:
+#  LIBGL_ALWAYS_SOFTWARE: "1"
 
 jobs:
   update-inputs:
