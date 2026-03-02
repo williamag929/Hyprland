@@ -1,51 +1,51 @@
-# SPATIAL-HYPR — Fork de Hyprland para Spatial OS
-> Especificación de modificaciones al compositor Hyprland  
-> para implementar navegación espacial en eje Z  
-> Versión: 0.1.0 | Estado: BORRADOR  
-> Agentes: `@architect` `@refactor`  
+# SPATIAL-HYPR — Hyprland Fork for Spatial OS
+> Specification of modifications to the Hyprland compositor  
+> to implement spatial navigation on the Z axis  
+> Version: 0.1.0 | Status: DRAFT  
+> Agents: `@architect` `@refactor`  
 > Base: Hyprland v0.45.x  
-> Conectado con: `SPATIAL_OS_SPEC.md`, `NO_FORMS_SPEC.md`
+> Connected with: `SPATIAL_OS_SPEC.md`, `NO_FORMS_SPEC.md`
 
 ---
 
-## Índice
+## Table of Contents
 
-1. [Estrategia del Fork](#1-estrategia-del-fork)
-2. [Mapa de Archivos a Modificar](#2-mapa-de-archivos-a-modificar)
-3. [Fase 1 — Estructura de Datos Z](#3-fase-1--estructura-de-datos-z)
-4. [Fase 2 — Renderizado con Perspectiva](#4-fase-2--renderizado-con-perspectiva)
-5. [Fase 3 — Shaders de Profundidad](#5-fase-3--shaders-de-profundidad)
-6. [Fase 4 — Navegación en Z](#6-fase-4--navegación-en-z)
-7. [Fase 5 — Configuración Spatial](#7-fase-5--configuración-spatial)
-8. [Fase 6 — ZSpaceManager](#8-fase-6--zspacemanager)
-9. [Sincronización con Upstream](#9-sincronización-con-upstream)
-10. [Testing y Validación](#10-testing-y-validación)
-11. [Tareas por Agente](#11-tareas-por-agente)
-12. [Contratos de Interfaz](#12-contratos-de-interfaz)
+1. [Fork Strategy](#1-fork-strategy)
+2. [File Modification Map](#2-file-modification-map)
+3. [Phase 1 — Z Data Structure](#3-phase-1--z-data-structure)
+4. [Phase 2 — Perspective Rendering](#4-phase-2--perspective-rendering)
+5. [Phase 3 — Depth Shaders](#5-phase-3--depth-shaders)
+6. [Phase 4 — Z Navigation](#6-phase-4--z-navigation)
+7. [Phase 5 — Spatial Configuration](#7-phase-5--spatial-configuration)
+8. [Phase 6 — ZSpaceManager](#8-phase-6--zspacemanager)
+9. [Upstream Synchronization](#9-upstream-synchronization)
+10. [Testing and Validation](#10-testing-and-validation)
+11. [Agent Tasks](#11-agent-tasks)
+12. [Interface Contracts](#12-interface-contracts)
 
 ---
 
-## 1. Estrategia del Fork
+## 1. Fork Strategy
 
-### Por qué fork y no plugin
+### Why a fork and not a plugin
 
-Hyprland tiene un sistema de plugins en C++ (`APICALL`, `HyprlandAPI`). Sin embargo, las modificaciones necesarias para el eje Z tocan el núcleo del renderer y la estructura `CWindow` — capas que la API de plugins no expone. Un fork es la única opción para el nivel de control requerido.
+Hyprland has a C++ plugin system (`APICALL`, `HyprlandAPI`). However, the modifications required for the Z axis touch the core renderer and the `CWindow` structure — layers that the plugin API does not expose. A fork is the only option for the level of control required.
 
-### Principio de mínima divergencia
+### Minimum divergence principle
 
-Cada modificación sigue esta regla: **tocar el mínimo código upstream posible**. Las features nuevas van en archivos nuevos siempre que sea factible. Esto reduce el costo de sincronización con upstream Hyprland.
+Every modification follows this rule: **touch the minimum upstream code possible**. New features go in new files whenever feasible. This reduces the cost of synchronizing with upstream Hyprland.
 
 ```
-Archivos modificados (upstream)  → mínimos, cambios quirúrgicos
-Archivos nuevos (spatial)        → toda la lógica nueva aquí
+Modified files (upstream)  → minimal, surgical changes
+New files (spatial)        → all new logic goes here
 ```
 
-### Estructura del repositorio
+### Repository structure
 
 ```
 spatial-hypr/
 ├── src/
-│   ├── spatial/                    ← NUEVO — todo el código spatial aquí
+│   ├── spatial/                    ← NEW — all spatial code here
 │   │   ├── ZSpaceManager.hpp
 │   │   ├── ZSpaceManager.cpp
 │   │   ├── SpatialConfig.hpp
@@ -54,49 +54,49 @@ spatial-hypr/
 │   │   └── SpatialInputHandler.cpp
 │   │
 │   ├── render/
-│   │   ├── Renderer.cpp            ← MODIFICADO (perspectiva 3D)
+│   │   ├── Renderer.cpp            ← MODIFIED (3D perspective)
 │   │   └── shaders/
-│   │       ├── depth_spatial.frag  ← NUEVO
-│   │       ├── depth_dof.frag      ← NUEVO
-│   │       └── passthrough_ar.frag ← NUEVO (futuro AR)
+│   │       ├── depth_spatial.frag  ← NEW
+│   │       ├── depth_dof.frag      ← NEW
+│   │       └── passthrough_ar.frag ← NEW (future AR)
 │   │
-│   ├── Window.hpp                  ← MODIFICADO (+Z fields)
-│   ├── Window.cpp                  ← MODIFICADO (Z init)
+│   ├── Window.hpp                  ← MODIFIED (+Z fields)
+│   ├── Window.cpp                  ← MODIFIED (Z init)
 │   └── managers/input/
-│       └── InputManager.cpp        ← MODIFICADO (scroll → Z nav)
+│       └── InputManager.cpp        ← MODIFIED (scroll → Z nav)
 │
-├── hyprland.conf.example           ← MODIFICADO (sección [spatial])
-├── SPATIAL_CHANGES.md              ← NUEVO — changelog del fork
-└── UPSTREAM_SYNC.md                ← NUEVO — guía de rebase
+├── hyprland.conf.example           ← MODIFIED (spatial section)
+├── SPATIAL_CHANGES.md              ← NEW — fork changelog
+└── UPSTREAM_SYNC.md                ← NEW — rebase guide
 ```
 
 ---
 
-## 2. Mapa de Archivos a Modificar
+## 2. File Modification Map
 
-Clasificación por impacto y riesgo de conflicto con upstream:
+Classified by impact and upstream conflict risk:
 
 ```
-IMPACTO ALTO / RIESGO ALTO (tocar con cuidado)
+HIGH IMPACT / HIGH RISK (handle with care)
   src/render/Renderer.cpp
-    → añadir matriz de perspectiva
-    → pasar u_zDepth a shaders
-    → ordenar ventanas por Z antes de renderizar (depth sorting)
+    → add perspective matrix
+    → pass u_zDepth to shaders
+    → sort windows by Z before rendering (depth sorting)
 
-IMPACTO ALTO / RIESGO MEDIO
+HIGH IMPACT / MEDIUM RISK
   src/Window.hpp
-    → añadir m_fZPosition, m_iZLayer, m_fZVelocity
+    → add m_fZPosition, m_iZLayer, m_fZVelocity
 
-IMPACTO MEDIO / RIESGO BAJO
+MEDIUM IMPACT / LOW RISK
   src/managers/input/InputManager.cpp
-    → interceptar scroll sin modificador → navegación Z
-    → añadir keybinds spatial_next_layer / spatial_prev_layer
+    → intercept unmodified scroll → Z navigation
+    → add spatial_next_layer / spatial_prev_layer keybinds
 
-IMPACTO BAJO / RIESGO BAJO
+LOW IMPACT / LOW RISK
   hyprland.conf
-    → nueva sección $spatial con parámetros de configuración
+    → new spatial{} section with configuration parameters
 
-ARCHIVOS NUEVOS (riesgo cero de conflicto)
+NEW FILES (zero conflict risk)
   src/spatial/*
   src/render/shaders/depth_spatial.frag
   src/render/shaders/depth_dof.frag
@@ -104,30 +104,30 @@ ARCHIVOS NUEVOS (riesgo cero de conflicto)
 
 ---
 
-## 3. Fase 1 — Estructura de Datos Z
+## 3. Phase 1 — Z Data Structure
 
-### 3.1 Modificación de `src/Window.hpp`
+### 3.1 Modification of `src/Window.hpp`
 
-Añadir los campos Z al final de la sección de propiedades de `CWindow`, agrupados en un struct propio para minimizar conflictos con upstream:
+Add the Z fields at the end of the `CWindow` properties section, grouped in their own struct to minimize conflicts with upstream:
 
 ```cpp
 // src/Window.hpp
-// Añadir dentro de class CWindow, al final de las propiedades públicas:
+// Add inside class CWindow, at the end of the public properties:
 
 // ── SPATIAL OS: Z-Space properties ──────────────────────────
 struct SSpatialProps {
-    float  fZPosition   = 0.0f;   // posición Z actual (unidades de mundo)
-    float  fZTarget     = 0.0f;   // posición Z objetivo (para animación)
-    float  fZVelocity   = 0.0f;   // velocidad actual de animación Z
-    int    iZLayer      = 0;      // capa discreta (0=frente, N=fondo)
-    float  fDepthNorm   = 0.0f;   // 0.0-1.0, normalizado para shaders
-    bool   bZPinned     = false;  // true = no se mueve con la cámara
-    bool   bZManaged    = true;   // false = la app controla su Z
+    float  fZPosition   = 0.0f;   // current Z position (world units)
+    float  fZTarget     = 0.0f;   // target Z position (for animation)
+    float  fZVelocity   = 0.0f;   // current Z animation velocity
+    int    iZLayer      = 0;      // discrete layer (0=front, N=back)
+    float  fDepthNorm   = 0.0f;   // 0.0-1.0, normalized for shaders
+    bool   bZPinned     = false;  // true = does not move with camera
+    bool   bZManaged    = true;   // false = app controls its own Z
 } m_sSpatialProps;
 // ─────────────────────────────────────────────────────────────
 ```
 
-### 3.2 Constantes del sistema Z
+### 3.2 Z System Constants
 
 ```cpp
 // src/spatial/ZSpaceManager.hpp
@@ -135,34 +135,34 @@ struct SSpatialProps {
 namespace Spatial {
 
 constexpr int   Z_LAYERS_COUNT  = 4;
-constexpr float Z_LAYER_STEP    = 800.0f;   // unidades entre capas
+constexpr float Z_LAYER_STEP    = 800.0f;   // world units between layers
 constexpr float Z_NEAR          = 0.1f;
 constexpr float Z_FAR           = 10000.0f;
 constexpr float Z_FOV_DEGREES   = 60.0f;
-constexpr float Z_ANIM_STIFFNESS = 200.0f;  // rigidez del spring
-constexpr float Z_ANIM_DAMPING   = 20.0f;   // amortiguación
+constexpr float Z_ANIM_STIFFNESS = 200.0f;  // spring stiffness
+constexpr float Z_ANIM_DAMPING   = 20.0f;   // spring damping
 
-// Posición Z por capa
+// Z position per layer
 constexpr float LAYER_Z_POSITIONS[Z_LAYERS_COUNT] = {
-    0.0f,      // Capa 0: Foreground — app activa
-   -800.0f,    // Capa 1: Near — apps recientes
-  -1600.0f,    // Capa 2: Mid — segundo plano
-  -2800.0f,    // Capa 3: Far — sistema / config
+    0.0f,      // Layer 0: Foreground — active app
+   -800.0f,    // Layer 1: Near — recent apps
+  -1600.0f,    // Layer 2: Mid — background
+  -2800.0f,    // Layer 3: Far — system / config
 };
 
-// Visibilidad por distancia de capa
+// Visibility by layer distance
 constexpr float LAYER_OPACITY[Z_LAYERS_COUNT] = {
-    1.00f,   // Capa 0: opacidad total
-    0.75f,   // Capa 1: ligero fade
-    0.40f,   // Capa 2: claramente al fondo
-    0.15f,   // Capa 3: casi invisible
+    1.00f,   // Layer 0: full opacity
+    0.75f,   // Layer 1: slight fade
+    0.40f,   // Layer 2: clearly in background
+    0.15f,   // Layer 3: almost invisible
 };
 
 constexpr float LAYER_BLUR_RADIUS[Z_LAYERS_COUNT] = {
-    0.0f,    // Capa 0: sin blur
-    1.5f,    // Capa 1: blur sutil
-    5.0f,    // Capa 2: blur evidente
-   12.0f,    // Capa 3: blur fuerte
+    0.0f,    // Layer 0: no blur
+    1.5f,    // Layer 1: subtle blur
+    5.0f,    // Layer 2: visible blur
+   12.0f,    // Layer 3: heavy blur
 };
 
 } // namespace Spatial
@@ -170,22 +170,22 @@ constexpr float LAYER_BLUR_RADIUS[Z_LAYERS_COUNT] = {
 
 ---
 
-## 4. Fase 2 — Renderizado con Perspectiva
+## 4. Phase 2 — Perspective Rendering
 
-### 4.1 Modificación de `src/render/Renderer.cpp`
+### 4.1 Modification of `src/render/Renderer.cpp`
 
-Este es el cambio más importante. Implica tres modificaciones quirúrgicas:
+This is the most important change. It involves three surgical modifications:
 
-**A) Añadir función de proyección perspectiva**
+**A) Add perspective projection function**
 
 ```cpp
-// Añadir en Renderer.cpp, antes de renderWindow()
+// Add in Renderer.cpp, before renderWindow()
 
 // ── SPATIAL OS: perspective projection ──
 glm::mat4 CSpatialRenderer::getSpatialProjection(int w, int h) {
     float aspect = (float)w / (float)h;
     
-    // Perspectiva real — ventanas lejanas se ven más pequeñas
+    // True perspective — distant windows appear smaller
     glm::mat4 proj = glm::perspective(
         glm::radians(Spatial::Z_FOV_DEGREES),
         aspect,
@@ -193,19 +193,19 @@ glm::mat4 CSpatialRenderer::getSpatialProjection(int w, int h) {
         Spatial::Z_FAR
     );
     
-    // Cámara — se mueve en Z según la capa activa
+    // Camera — moves in Z according to the active layer
     float camZ = -m_pZSpaceManager->getCameraZ();
     glm::mat4 view = glm::lookAt(
-        glm::vec3(w / 2.0f, h / 2.0f, camZ + 1200.0f), // posición cámara
-        glm::vec3(w / 2.0f, h / 2.0f, camZ),            // mira al centro
-        glm::vec3(0.0f, -1.0f, 0.0f)                    // up (Y invertido en pantalla)
+        glm::vec3(w / 2.0f, h / 2.0f, camZ + 1200.0f), // camera position
+        glm::vec3(w / 2.0f, h / 2.0f, camZ),            // looks at center
+        glm::vec3(0.0f, -1.0f, 0.0f)                    // up (Y inverted on screen)
     );
     
     return proj * view;
 }
 // ─────────────────────────────────────────────────────────────
 
-// Modificar la función de transform de ventana existente:
+// Modify the existing window transform function:
 glm::mat4 getWindowTransform(CWindow* pWindow) {
     auto& sp = pWindow->m_sSpatialProps;
     
@@ -213,36 +213,36 @@ glm::mat4 getWindowTransform(CWindow* pWindow) {
     model = glm::translate(model, glm::vec3(
         pWindow->m_vRealPosition.x,
         pWindow->m_vRealPosition.y,
-        sp.fZPosition  // ← eje Z añadido
+        sp.fZPosition  // ← Z axis added
     ));
     
     return getSpatialProjection(m_iScreenW, m_iScreenH) * model;
 }
 ```
 
-**B) Depth sorting antes de renderizar**
+**B) Depth sorting before rendering**
 
-Las ventanas deben dibujarse de atrás hacia adelante (painter's algorithm) para que la transparencia funcione correctamente:
+Windows must be drawn back-to-front (painter's algorithm) for transparency to work correctly:
 
 ```cpp
-// En renderAllWindows() — añadir sort por Z antes del loop
+// In renderAllWindows() — add sort by Z before the loop
 
 // ── SPATIAL OS: depth sort ──
 std::vector<CWindow*> sortedWindows = g_pCompositor->m_vWindows;
 std::sort(sortedWindows.begin(), sortedWindows.end(),
     [](CWindow* a, CWindow* b) {
-        // De más lejano (Z más negativo) a más cercano (Z=0)
+        // From furthest (most negative Z) to closest (Z=0)
         return a->m_sSpatialProps.fZPosition < b->m_sSpatialProps.fZPosition;
     }
 );
-// renderizar sortedWindows en lugar de m_vWindows
+// render sortedWindows instead of m_vWindows
 // ───────────────────────────────────────────────
 ```
 
-**C) Pasar u_zDepth al shader por ventana**
+**C) Pass u_zDepth to shader per window**
 
 ```cpp
-// En la llamada al shader por cada ventana:
+// In the shader call for each window:
 glUniform1f(glGetUniformLocation(prog, "u_zDepth"),
     pWindow->m_sSpatialProps.fDepthNorm);
 
@@ -252,35 +252,35 @@ glUniform1f(glGetUniformLocation(prog, "u_blurRadius"),
 
 ---
 
-## 5. Fase 3 — Shaders de Profundidad
+## 5. Phase 3 — Depth Shaders
 
-### 5.1 `depth_spatial.frag` — shader principal
+### 5.1 `depth_spatial.frag` — main shader
 
 ```glsl
 // src/render/shaders/depth_spatial.frag
-// Shader de profundidad para Spatial OS
-// Extiende el blur gaussiano de Hyprland con efectos de profundidad Z
+// Depth shader for Spatial OS
+// Extends Hyprland's Gaussian blur with Z-depth effects
 
 #version 430 core
 
-uniform sampler2D tex;          // textura de la ventana
-uniform sampler2D texBlur;      // versión pre-blureada (framebuffer Hyprland)
-uniform float u_zDepth;         // 0.0 = frente, 1.0 = fondo
-uniform float u_blurRadius;     // radio de blur en px para esta capa
-uniform float u_alpha;          // alpha base de la ventana (hyprland)
-uniform vec2  u_resolution;     // resolución de pantalla
+uniform sampler2D tex;          // window texture
+uniform sampler2D texBlur;      // pre-blurred version (Hyprland framebuffer)
+uniform float u_zDepth;         // 0.0 = front, 1.0 = back
+uniform float u_blurRadius;     // blur radius in px for this layer
+uniform float u_alpha;          // base window alpha (hyprland)
+uniform vec2  u_resolution;     // screen resolution
 
 in  vec2 v_texCoord;
 out vec4 fragColor;
 
-// Blur gaussiano 9-tap adaptativo
+// Adaptive 9-tap Gaussian blur
 vec4 sampleBlur(sampler2D t, vec2 uv, float radius) {
     if (radius < 0.5) return texture(t, uv);
     
     vec2 texel = radius / u_resolution;
     vec4 result = vec4(0.0);
     
-    // Kernel gaussiano 3x3 con pesos
+    // 3x3 Gaussian kernel with weights
     float weights[9] = float[](
         0.0625, 0.125, 0.0625,
         0.125,  0.25,  0.125,
@@ -299,26 +299,26 @@ vec4 sampleBlur(sampler2D t, vec2 uv, float radius) {
 }
 
 void main() {
-    // Curva de profundidad — no lineal, más impacto en capas medias
+    // Depth curve — non-linear, more impact on middle layers
     float depth = smoothstep(0.0, 1.0, u_zDepth);
     
-    // Mezcla nítido ↔ borroso según profundidad (depth of field)
+    // Mix sharp ↔ blurry based on depth (depth of field)
     vec4 sharp  = texture(tex, v_texCoord);
     vec4 blurry = sampleBlur(tex, v_texCoord, u_blurRadius);
     vec4 color  = mix(sharp, blurry, depth * 0.9);
     
-    // Tinte atmosférico — lo lejano se enfría visualmente
-    // Imita cómo la atmósfera desatura objetos distantes
+    // Atmospheric tint — distant objects cool visually
+    // Mimics how the atmosphere desaturates distant objects
     vec3 tint = mix(
-        vec3(1.0, 1.0, 1.0),          // cercano: color puro
-        vec3(0.65, 0.80, 1.0),        // lejano: tinte azul-gris frío
+        vec3(1.0, 1.0, 1.0),          // near: pure color
+        vec3(0.65, 0.80, 1.0),        // far: cool blue-grey tint
         depth * 0.45
     );
     
-    // Opacidad por profundidad
+    // Opacity by depth
     float alpha = u_alpha * mix(1.0, 0.12, depth * 0.92);
     
-    // Viñeta sutil en capas de fondo
+    // Subtle vignette on background layers
     vec2 center = v_texCoord - 0.5;
     float vignette = 1.0 - dot(center, center) * depth * 1.2;
     vignette = clamp(vignette, 0.0, 1.0);
@@ -327,25 +327,25 @@ void main() {
 }
 ```
 
-### 5.2 `depth_dof.frag` — depth of field cinematográfico
+### 5.2 `depth_dof.frag` — cinematic depth of field
 
 ```glsl
 // src/render/shaders/depth_dof.frag
-// Depth of field con bokeh circular — efecto cinematográfico
-// Más costoso, activable por config: spatial_dof = true
+// Depth of field with circular bokeh — cinematic effect
+// More expensive, toggleable via config: spatial_dof = true
 
 #version 430 core
 
 uniform sampler2D tex;
 uniform float u_zDepth;
-uniform float u_focalPlane;   // 0.0-1.0, dónde está el foco
-uniform float u_aperture;     // 0.0-1.0, cuánto bokeh (f/stop)
+uniform float u_focalPlane;   // 0.0-1.0, where the focus plane is
+uniform float u_aperture;     // 0.0-1.0, how much bokeh (f/stop)
 uniform vec2  u_resolution;
 
 in  vec2 v_texCoord;
 out vec4 fragColor;
 
-// Círculo de confusión (CoC) — base del depth of field fotográfico
+// Circle of Confusion (CoC) — core of photographic depth of field
 float circleOfConfusion(float depth, float focal) {
     return abs(depth - focal) * u_aperture * 12.0;
 }
@@ -357,7 +357,7 @@ vec4 bokehSample(sampler2D t, vec2 uv, float coc) {
     vec4 result = vec4(0.0);
     float total  = 0.0;
     
-    // Muestreo circular (bokeh real)
+    // Circular sampling (real bokeh)
     int samples = 16;
     for (int i = 0; i < samples; i++) {
         float angle  = float(i) / float(samples) * 6.28318;
@@ -365,7 +365,7 @@ vec4 bokehSample(sampler2D t, vec2 uv, float coc) {
         vec2  offset = vec2(cos(angle), sin(angle)) * radius;
         
         vec4 s = texture(t, uv + offset * texelSize);
-        // Brillo mayor = más peso en bokeh (simula highlights)
+        // Higher brightness = more weight in bokeh (simulates highlights)
         float w = 1.0 + dot(s.rgb, vec3(0.3, 0.59, 0.11)) * 2.0;
         result += s * w;
         total  += w;
@@ -380,18 +380,18 @@ void main() {
 }
 ```
 
-### 5.3 `passthrough_ar.frag` — mezcla AR (futuro)
+### 5.3 `passthrough_ar.frag` — AR blend (future)
 
 ```glsl
 // src/render/shaders/passthrough_ar.frag
-// Mezcla ventanas Wayland con imagen de cámara AR
-// Activado cuando spatial_xr_bridge detecta un headset AR
+// Blends Wayland windows with AR camera image
+// Activated when spatial_xr_bridge detects an AR headset
 
 #version 430 core
 
-uniform sampler2D texWindow;     // ventana Wayland renderizada
-uniform sampler2D texCamera;     // feed de cámara del headset (AR passthrough)
-uniform float u_windowAlpha;     // transparencia global de ventanas en AR
+uniform sampler2D texWindow;     // rendered Wayland window
+uniform sampler2D texCamera;     // headset camera feed (AR passthrough)
+uniform float u_windowAlpha;     // global window transparency in AR
 uniform float u_zDepth;
 
 in  vec2 v_texCoord;
@@ -401,8 +401,8 @@ void main() {
     vec4 window = texture(texWindow, v_texCoord);
     vec4 camera = texture(texCamera, v_texCoord);
     
-    // Las ventanas se mezclan sobre el mundo real
-    // Más profundidad = más transparentes (menos intrusivas)
+    // Windows blend over the real world
+    // More depth = more transparent (less intrusive)
     float blend = window.a * u_windowAlpha * (1.0 - u_zDepth * 0.5);
     
     fragColor = mix(camera, window, blend);
@@ -411,50 +411,50 @@ void main() {
 
 ---
 
-## 6. Fase 4 — Navegación en Z
+## 6. Phase 4 — Z Navigation
 
-### 6.1 Modificación de `src/managers/input/InputManager.cpp`
+### 6.1 Modification of `src/managers/input/InputManager.cpp`
 
 ```cpp
 // InputManager.cpp
-// Añadir en onAxisEvent() o equivalente de scroll
+// Add in onAxisEvent() or equivalent scroll handler
 
-// ── SPATIAL OS: scroll → navegación Z ──
+// ── SPATIAL OS: scroll → Z navigation ──
 void CInputManager::handleSpatialScroll(double delta, bool hasModifier) {
     
-    // Sin modificador = navegación Z (cambio de paradigma)
-    // Con Super = scroll normal de ventana (comportamiento legacy)
+    // No modifier = Z navigation (paradigm shift)
+    // With Super = normal window scroll (legacy behavior)
     if (!hasModifier) {
         if (delta > 0)
-            g_pZSpaceManager->navigateForward();   // profundizar
+            g_pZSpaceManager->navigateForward();   // go deeper
         else
-            g_pZSpaceManager->navigateBackward();  // subir capa
+            g_pZSpaceManager->navigateBackward();  // go up a layer
         
-        return; // consumir el evento, no llegar a la ventana
+        return; // consume event, do not pass to window
     }
     
-    // Con modificador Super → scroll pasa a la ventana normalmente
+    // With Super modifier → scroll passes through to window normally
     handleLegacyScroll(delta);
 }
 // ────────────────────────────────────────
 
-// Añadir en handleKeybinds():
+// Add in handleKeybinds():
 // spatial_next_layer  → g_pZSpaceManager->navigateForward()
 // spatial_prev_layer  → g_pZSpaceManager->navigateBackward()
 // spatial_reset_view  → g_pZSpaceManager->resetCamera()
 // spatial_pin_window  → g_pZSpaceManager->togglePin(activeWindow)
 ```
 
-### 6.2 Animación de cámara con spring physics
+### 6.2 Camera animation with spring physics
 
-La navegación Z no es instantánea — usa física de resorte para que la sensación sea fluida y "con peso":
+Z navigation is not instantaneous — it uses spring physics so movement feels smooth and "weighted":
 
 ```cpp
 // src/spatial/ZSpaceManager.cpp
 
 void ZSpaceManager::updateCameraAnimation(float deltaTime) {
-    // Spring physics — igual que Hyprland usa para mover ventanas
-    // F = -k*x - c*v  (fuerza = resorte - amortiguación)
+    // Spring physics — same technique Hyprland uses to move windows
+    // F = -k*x - c*v  (force = spring - damping)
     
     float displacement = m_fCameraZTarget - m_fCameraZ;
     float springForce  = displacement * Spatial::Z_ANIM_STIFFNESS;
@@ -464,14 +464,14 @@ void ZSpaceManager::updateCameraAnimation(float deltaTime) {
     m_fCameraZVelocity += acceleration * deltaTime;
     m_fCameraZ         += m_fCameraZVelocity * deltaTime;
     
-    // Actualizar profundidad normalizada de cada ventana
+    // Update normalized depth for each window
     for (auto& window : g_pCompositor->m_vWindows) {
         float relZ  = window->m_sSpatialProps.fZPosition - m_fCameraZ;
         float normZ = std::clamp(-relZ / (Spatial::Z_LAYER_STEP * 3.0f),
                                   0.0f, 1.0f);
         window->m_sSpatialProps.fDepthNorm = normZ;
         
-        // Actualizar capa discreta
+        // Update discrete layer
         int layer = static_cast<int>(
             std::round(-relZ / Spatial::Z_LAYER_STEP)
         );
@@ -498,50 +498,50 @@ void ZSpaceManager::setTargetLayer(int layer) {
 
 ---
 
-## 7. Fase 5 — Configuración Spatial
+## 7. Phase 5 — Spatial Configuration
 
-### 7.1 Nueva sección en `hyprland.conf`
+### 7.1 New section in `hyprland.conf`
 
 ```ini
 # ── SPATIAL OS ──────────────────────────────────────
 spatial {
-    # Activar modo espacial 3D
+    # Enable 3D spatial mode
     enabled = true
     
-    # Número de capas Z (2-8)
+    # Number of Z layers (2-8)
     z_layers = 4
     
-    # Distancia entre capas en unidades de mundo
+    # Distance between layers in world units
     z_layer_step = 800
     
-    # Campo de visión en grados (45-90)
+    # Field of view in degrees (45-90)
     fov = 60
     
-    # Física de animación
+    # Animation physics
     anim_stiffness = 200
     anim_damping   = 20
     
-    # Efectos visuales
-    depth_of_field   = false  # bokeh (costoso en GPU)
-    atmospheric_tint = true   # tinte azul en profundidad
-    depth_vignette   = true   # viñeta en capas lejanas
+    # Visual effects
+    depth_of_field   = false  # bokeh (GPU-expensive)
+    atmospheric_tint = true   # blue tint at depth
+    depth_vignette   = true   # vignette on distant layers
     
-    # Scroll sin modificador → navegar Z
-    # true  = scroll navega capas (nuevo paradigma)
-    # false = scroll normal, usar keybinds para Z
+    # Scroll without modifier → navigate Z
+    # true  = scroll navigates layers (new paradigm)
+    # false = normal scroll, use keybinds for Z
     scroll_navigates_z = true
     
-    # Reglas de capa por defecto por clase de app
+    # Default layer rules by app class
     # app_layer = class, layer_number
-    app_layer = kitty,       0   # terminal → frente
-    app_layer = firefox,     0   # browser → frente
-    app_layer = thunar,      1   # archivos → capa 1
-    app_layer = thunderbird, 1   # correo → capa 1
-    app_layer = pavucontrol, 2   # audio → capa 2
-    app_layer = nm-applet,   3   # sistema → fondo
+    app_layer = kitty,       0   # terminal → front
+    app_layer = firefox,     0   # browser → front
+    app_layer = thunar,      1   # files → layer 1
+    app_layer = thunderbird, 1   # mail → layer 1
+    app_layer = pavucontrol, 2   # audio → layer 2
+    app_layer = nm-applet,   3   # system → background
 }
 
-# Keybinds de navegación Z
+# Z navigation keybinds
 bind = SUPER, period,    spatial_next_layer
 bind = SUPER, comma,     spatial_prev_layer
 bind = SUPER, backslash, spatial_reset_view
@@ -552,9 +552,9 @@ bind = SUPER, bracketleft,  spatial_move_window_backward
 
 ---
 
-## 8. Fase 6 — ZSpaceManager
+## 8. Phase 6 — ZSpaceManager
 
-Componente central que gestiona el estado del espacio Z, la cámara, y los nodos:
+Central component that manages Z-space state, the camera, and window nodes:
 
 ```cpp
 // src/spatial/ZSpaceManager.hpp
@@ -571,11 +571,11 @@ public:
     ZSpaceManager();
     ~ZSpaceManager() = default;
 
-    // ── Inicialización ──
+    // ── Initialization ──
     void init(int screenW, int screenH);
     void setScreenSize(int w, int h);
 
-    // ── Cámara ──
+    // ── Camera ──
     float     getCameraZ()         const { return m_fCameraZ; }
     float     getCameraZTarget()   const { return m_fCameraZTarget; }
     int       getCurrentLayer()    const { return m_iCurrentLayer; }
@@ -583,18 +583,18 @@ public:
     glm::mat4 getProjectionMatrix() const;
     glm::mat4 getViewProjection()  const;
 
-    // ── Navegación ──
+    // ── Navigation ──
     void navigateForward();
     void navigateBackward();
     void setTargetLayer(int layer);
     void resetCamera();
 
-    // ── Gestión de ventanas en Z ──
+    // ── Z window management ──
     void assignWindowToLayer(CWindow* w, int layer);
     void moveWindowForward(CWindow* w);
     void moveWindowBackward(CWindow* w);
     void togglePin(CWindow* w);
-    void autoAssignLayer(CWindow* w);  // basado en reglas de config
+    void autoAssignLayer(CWindow* w);  // based on config rules
 
     // ── Update loop ──
     void update(float deltaTime);
@@ -609,13 +609,13 @@ public:
     bool  isWindowVisible(CWindow* w) const;
 
 private:
-    // Estado de cámara
+    // Camera state
     float m_fCameraZ        = 0.0f;
     float m_fCameraZTarget  = 0.0f;
     float m_fCameraZVelocity = 0.0f;
     int   m_iCurrentLayer   = 0;
 
-    // Pantalla
+    // Screen
     int m_iScreenW = 1920;
     int m_iScreenH = 1080;
 
@@ -625,40 +625,40 @@ private:
     // Callbacks
     LayerChangedCb m_cbLayerChanged;
 
-    // Internos
+    // Internal
     void updateCameraAnimation(float deltaTime);
     void updateWindowDepths();
     void notifyLayerChanged(int oldLayer, int newLayer);
 };
 
-// Singleton global (igual que Hyprland usa g_pCompositor)
+// Global singleton (same pattern as Hyprland's g_pCompositor)
 inline std::unique_ptr<ZSpaceManager> g_pZSpaceManager;
 ```
 
 ---
 
-## 9. Sincronización con Upstream
+## 9. Upstream Synchronization
 
-Hyprland tiene releases frecuentes. Estrategia para mantener el fork actualizado:
+Hyprland releases frequently. Strategy for keeping the fork up to date:
 
-### 9.1 Estructura de branches
+### 9.1 Branch structure
 
 ```
-main              ← fork estable, siempre compila
-develop           ← integración de features spatial
-upstream-sync     ← branch temporal para rebases
+main              ← stable fork, always compiles
+develop           ← spatial feature integration
+upstream-sync     ← temporary branch for rebases
 
-Releases de Hyprland upstream:
-  hyprland/v0.45 ← tagged en el fork para referencia
-  hyprland/v0.46 ← cuando sale, se hace rebase de spatial sobre esto
+Hyprland upstream releases:
+  hyprland/v0.45 ← tagged in the fork for reference
+  hyprland/v0.46 ← when released, rebase spatial on top
 ```
 
-### 9.2 Script de sincronización
+### 9.2 Sync script
 
 ```bash
 #!/usr/bin/env bash
 # scripts/sync-upstream.sh
-# Sincroniza el fork con la versión más reciente de Hyprland
+# Syncs the fork with the latest Hyprland version
 
 set -e
 
@@ -677,7 +677,7 @@ echo "→ Creating sync branch..."
 git checkout -b "upstream-sync-$(date +%Y%m%d)" upstream/main
 
 echo "→ Cherry-picking spatial commits..."
-# Los commits spatial están etiquetados con [SPATIAL] en el mensaje
+# Spatial commits are tagged with [SPATIAL] in the commit message
 git log $SPATIAL_BRANCH --oneline --grep="\[SPATIAL\]" \
     --format="%H" | tac | xargs git cherry-pick
 
@@ -687,9 +687,9 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)
 echo "✓ Sync complete. Review changes and merge to develop."
 ```
 
-### 9.3 Convención de commits
+### 9.3 Commit convention
 
-Todos los commits del fork deben prefijarse para facilitar cherry-pick:
+All fork commits must be prefixed to facilitate cherry-pick:
 
 ```
 [SPATIAL] feat: add m_fZPosition to CWindow
@@ -699,32 +699,32 @@ Todos los commits del fork deben prefijarse para facilitar cherry-pick:
 [SPATIAL] config: add spatial{} section parser
 ```
 
-Los commits sin `[SPATIAL]` se asumen como cambios upstream y se descartan en la sincronización.
+Commits without `[SPATIAL]` are assumed to be upstream changes and are discarded during synchronization.
 
 ---
 
-## 10. Testing y Validación
+## 10. Testing and Validation
 
-### 10.1 Test de compositor anidado (nested Wayland)
+### 10.1 Nested Wayland compositor test
 
-El método más seguro para desarrollar — corre el compositor modificado dentro de tu sesión Hyprland normal:
+The safest development method — run the modified compositor inside your normal Hyprland session:
 
 ```bash
-# Terminal 1 — compilar y correr el fork en modo anidado
+# Terminal 1 — build and run the fork in nested mode
 cd spatial-hypr
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 
-# El compositor se abre en una ventana de tu sesión actual
-# Si explota, tu escritorio sigue funcionando
+# Compositor opens in a window inside your current session
+# If it crashes, your desktop keeps running
 WAYLAND_DISPLAY=wayland-99 ./build/Hyprland --nested
 
-# Terminal 2 — lanzar apps de test dentro del compositor anidado
+# Terminal 2 — launch test apps inside the nested compositor
 WAYLAND_DISPLAY=wayland-99 kitty &
 WAYLAND_DISPLAY=wayland-99 firefox &
 ```
 
-### 10.2 Suite de tests de renderizado
+### 10.2 Rendering test suite
 
 ```cpp
 // tests/spatial/test_zspace.cpp
@@ -741,7 +741,7 @@ TEST(ZSpaceManager, LayerNavigation) {
     mgr.navigateBackward();
     EXPECT_EQ(mgr.getCurrentLayer(), 0);
     
-    // No navegar más allá del límite
+    // Must not navigate past the boundary
     mgr.navigateBackward();
     EXPECT_EQ(mgr.getCurrentLayer(), 0);
 }
@@ -751,179 +751,183 @@ TEST(ZSpaceManager, WindowDepthNorm) {
     mgr.init(1920, 1080);
     
     CWindow mockWindow;
-    mockWindow.m_sSpatialProps.fZPosition = 0.0f;    // capa 0
+    mockWindow.m_sSpatialProps.fZPosition = 0.0f;    // layer 0
     EXPECT_NEAR(mgr.getWindowDepthNorm(&mockWindow), 0.0f, 0.01f);
     
-    mockWindow.m_sSpatialProps.fZPosition = -800.0f; // capa 1
+    mockWindow.m_sSpatialProps.fZPosition = -800.0f; // layer 1
     EXPECT_NEAR(mgr.getWindowDepthNorm(&mockWindow), 0.33f, 0.05f);
 }
 
 TEST(ZSpaceManager, SpringAnimation) {
     ZSpaceManager mgr;
     mgr.init(1920, 1080);
-    mgr.navigateForward(); // target: capa 1
+    mgr.navigateForward(); // target: layer 1
     
-    // Simular 500ms de animación
+    // Simulate 500ms of animation
     for (int i = 0; i < 50; i++)
         mgr.update(0.010f);
     
-    // La cámara debe haberse acercado al target
+    // Camera must have moved close to target
     float target = -Spatial::LAYER_Z_POSITIONS[1];
-    EXPECT_NEAR(mgr.getCameraZ(), target, 50.0f); // dentro de 50 unidades
+    EXPECT_NEAR(mgr.getCameraZ(), target, 50.0f); // within 50 units
 }
 ```
 
-### 10.3 Validación visual — checklist por fase
+### 10.3 Visual validation — checklist by phase
 
 ```markdown
-Fase 1 (Estructura Z)
-  [ ] CWindow compila sin errores con los nuevos campos
-  [ ] m_fZPosition inicializa a 0.0f en nuevas ventanas
-  [ ] Las reglas de config asignan capas correctamente
+Phase 1 (Z Structure)
+  [ ] CWindow compiles without errors with the new fields
+  [ ] m_fZPosition initializes to 0.0f on new windows
+  [ ] Config rules assign layers correctly
 
-Fase 2 (Perspectiva)
-  [ ] Las ventanas se ven con perspectiva al cambiar de capa
-  [ ] El depth sorting evita z-fighting en transparencias
-  [ ] La cámara se mueve suavemente entre capas
+Phase 2 (Perspective)
+  [ ] Windows show perspective effect when changing layer
+  [ ] Depth sorting prevents z-fighting in transparencies
+  [ ] Camera moves smoothly between layers
 
-Fase 3 (Shaders)
-  [ ] Ventanas en capa 0: nítidas, opacidad 1.0
-  [ ] Ventanas en capa 1: blur 1.5px, opacidad 0.75
-  [ ] Ventanas en capa 2: blur 5px, opacidad 0.40
-  [ ] Tinte azul-frío visible en capas 2 y 3
-  [ ] Sin artefactos visuales en bordes de ventanas
+Phase 3 (Shaders)
+  [ ] Layer 0 windows: sharp, opacity 1.0
+  [ ] Layer 1 windows: 1.5px blur, opacity 0.75
+  [ ] Layer 2 windows: 5px blur, opacity 0.40
+  [ ] Cool-blue tint visible on layers 2 and 3
+  [ ] No visual artifacts at window edges
 
-Fase 4 (Navegación)
-  [ ] Scroll sin modificador → cambia capa Z
-  [ ] Scroll con Super → scroll normal en ventana
-  [ ] Keybinds SUPER+. y SUPER+, funcionan
-  [ ] Animación spring sin overshooting excesivo
+Phase 4 (Navigation)
+  [ ] Scroll without modifier → changes Z layer
+  [ ] Scroll with Super → normal window scroll
+  [ ] SUPER+. and SUPER+, keybinds work
+  [ ] Spring animation without excessive overshooting
 
-Fase 5 (Config)
-  [ ] hyprland.conf parsea sección spatial{} sin error
-  [ ] app_layer asigna capas por clase correctamente
-  [ ] spatial_dof = true activa shader bokeh
+Phase 5 (Config)
+  [ ] hyprland.conf parses spatial{} section without error
+  [ ] app_layer assigns layers by class correctly
+  [ ] spatial_dof = true activates the bokeh shader
 ```
 
 ---
 
-## 11. Tareas por Agente
+## 11. Agent Tasks
 
 ### `@architect`
 
 ```markdown
 @architect TASK-SH-001
-Revisar el código fuente de Renderer.cpp de Hyprland v0.45
-e identificar el punto exacto de inserción para la matriz de
-perspectiva. Documentar las funciones existentes que se usan
-para transformar coordenadas de ventana a coordenadas de pantalla.
-Entregable: mapa de funciones afectadas + decisión de inserción.
+Review the Renderer.cpp source code from Hyprland v0.45
+and identify the exact insertion point for the perspective matrix.
+Document the existing functions used to transform window coordinates
+to screen coordinates.
+Deliverable: map of affected functions + insertion decision.
 
 @architect TASK-SH-002
-Diseñar la estrategia de depth sorting compatible con el sistema
-de capas (layers) existente de Hyprland (overlay, top, normal, bottom).
-Las capas Hyprland deben coexistir con las capas Z espaciales sin conflicto.
-Entregable: diagrama de precedencia de capas + pseudocódigo del sort.
+Design the depth sorting strategy compatible with Hyprland's existing
+layer system (overlay, top, normal, bottom).
+Hyprland layers must coexist with spatial Z layers without conflict.
+Deliverable: layer precedence diagram + sort pseudocode.
 
 @architect TASK-SH-003
-Diseñar el parser de la sección spatial{} para hyprland.conf.
-Hyprland usa su propio sistema de configuración (hyprlang).
-Documentar cómo añadir una nueva sección sin romper el parser existente.
-Entregable: diff mínimo necesario en el parser + definición de todos los campos.
+Design the parser for the spatial{} section in hyprland.conf.
+Hyprland uses its own configuration system (hyprlang).
+Document how to add a new section without breaking the existing parser.
+Deliverable: minimal diff needed in the parser + definition of all fields.
 
 @architect TASK-SH-004
-Evaluar el impacto en rendimiento de la perspectiva 3D.
-Hyprland optimiza renderizado con damage tracking (solo redibuja zonas
-que cambian). La perspectiva 3D puede invalidar esas optimizaciones.
-Proponer estrategia para mantener el damage tracking con Z activo.
-Entregable: análisis de impacto + propuesta de mitigación.
+Evaluate the performance impact of 3D perspective.
+Hyprland optimizes rendering with damage tracking (only redraws areas
+that change). 3D perspective may invalidate those optimizations.
+Propose a strategy to preserve damage tracking with Z active.
+Deliverable: impact analysis + mitigation proposal.
 ```
 
 ### `@refactor`
 
 ```markdown
+[x] COMPLETED
 @refactor TASK-SH-101
-Implementar las modificaciones a Window.hpp y Window.cpp.
-Añadir SSpatialProps al final de CWindow sin tocar campos existentes.
-Inicializar todos los campos en el constructor.
-Tests: verificar que las builds de Hyprland existentes siguen pasando.
+Implement modifications to Window.hpp and Window.cpp.
+Add SSpatialProps at the end of CWindow without touching existing fields.
+Initialize all fields in the constructor.
+Tests: verify that existing Hyprland builds still pass.
 
+[x] COMPLETED
 @refactor TASK-SH-102
-Implementar ZSpaceManager.hpp y ZSpaceManager.cpp completos
-según el contrato de interfaz de esta especificación.
-Incluir todos los tests de test_zspace.cpp.
-El manager debe compilar de forma aislada (mock de CWindow para tests).
+Implement ZSpaceManager.hpp and ZSpaceManager.cpp in full
+according to the interface contract in this specification.
+Include all tests from test_zspace.cpp.
+The manager must compile in isolation (mock CWindow for tests).
 
+[x] COMPLETED
 @refactor TASK-SH-103
-Implementar depth_spatial.frag y depth_dof.frag.
-Integrarlos en el sistema de shaders de Hyprland.
-Validar compilación en GLSL 4.30 core profile.
-Test: script que compile los shaders con glslangValidator.
+Implement depth_spatial.frag and depth_dof.frag.
+Integrate them into Hyprland's shader system.
+Validate compilation in GLSL 4.30 core profile.
+Test: script that compiles shaders with glslangValidator.
 
 @refactor TASK-SH-104
-Implementar la modificación de Renderer.cpp.
-Punto A: función getSpatialProjection() con glm::perspective.
-Punto B: depth sorting antes del render loop.
-Punto C: paso de uniforms u_zDepth y u_blurRadius por ventana.
-Correr en modo nested Wayland y capturar screenshot de validación.
+Implement the Renderer.cpp modification.
+Point A: getSpatialProjection() function with glm::perspective.
+Point B: depth sorting before the render loop.
+Point C: pass u_zDepth and u_blurRadius uniforms per window.
+Run in nested Wayland mode and capture a validation screenshot.
 
 @refactor TASK-SH-105
-Implementar las modificaciones a InputManager.cpp.
-Interceptar scroll sin modificador → ZSpaceManager::navigateForward/Backward.
-Registrar los keybinds spatial_* en el sistema de keybinds de Hyprland.
-Test: verificar que scroll con Super sigue funcionando normalmente.
+Implement modifications to InputManager.cpp.
+Intercept scroll without modifier → ZSpaceManager::navigateForward/Backward.
+Register spatial_* keybinds in Hyprland's keybind system.
+Test: verify that scroll with Super still works normally.
 
+[x] COMPLETED
 @refactor TASK-SH-106
-Implementar el script sync-upstream.sh y la configuración de git remotes.
-Crear SPATIAL_CHANGES.md con el log inicial de cambios.
-Crear UPSTREAM_SYNC.md con instrucciones paso a paso para hacer rebase.
-Configurar GitHub Actions para build automático en cada PR.
+Implement the sync-upstream.sh script and git remote configuration.
+Create SPATIAL_CHANGES.md with the initial change log.
+Create UPSTREAM_SYNC.md with step-by-step rebase instructions.
+Configure GitHub Actions for automatic build on each PR.
 ```
 
 ---
 
-## 12. Contratos de Interfaz
+## 12. Interface Contracts
 
-### 12.1 Interface pública de ZSpaceManager (resumen)
+### 12.1 Public ZSpaceManager interface (summary)
 
 ```cpp
-// Lo que el resto del compositor necesita saber de ZSpaceManager
+// What the rest of the compositor needs to know about ZSpaceManager
 
 class ZSpaceManager {
 public:
-    // Renderer lo llama cada frame
+    // Renderer calls this every frame
     glm::mat4 getViewProjection() const;
     float     getWindowDepthNorm(CWindow*) const;
 
-    // InputManager lo llama en eventos de scroll/keybind
+    // InputManager calls this on scroll/keybind events
     void navigateForward();
     void navigateBackward();
 
-    // Compositor lo llama al crear/destruir ventanas
+    // Compositor calls this when creating/destroying windows
     void autoAssignLayer(CWindow*);
     void removeWindow(CWindow*);
 
-    // Main loop lo llama cada tick
+    // Main loop calls this every tick
     void update(float deltaTime);
 };
 ```
 
-### 12.2 Uniforms del shader por ventana
+### 12.2 Shader uniforms per window
 
 ```cpp
-// Contrato entre Renderer.cpp y los shaders spatial
-// Estos uniforms DEBEN estar presentes en todos los shaders spatial
+// Contract between Renderer.cpp and the spatial shaders
+// These uniforms MUST be present in all spatial shaders
 
 struct SpatialShaderUniforms {
-    float u_zDepth;        // 0.0-1.0, profundidad normalizada
-    float u_blurRadius;    // px de blur para esta capa
-    float u_alpha;         // opacidad calculada por Z
-    vec2  u_resolution;    // resolución de pantalla
-    // + uniforms estándar de Hyprland (proj, tex, etc.)
+    float u_zDepth;        // 0.0-1.0, normalized depth
+    float u_blurRadius;    // px blur for this layer
+    float u_alpha;         // opacity calculated from Z
+    vec2  u_resolution;    // screen resolution
+    // + standard Hyprland uniforms (proj, tex, etc.)
 };
 ```
 
-### 12.3 GitHub Actions — CI mínimo
+### 12.3 GitHub Actions — Minimum CI
 
 ```yaml
 # .github/workflows/spatial-build.yml
@@ -964,46 +968,50 @@ jobs:
 
 ---
 
-## Hoja de Ruta Resumida
+## Roadmap Summary (Historical Snapshot)
+
+> ⚠️ This week-by-week timeline reflects the original Phase 1 execution plan/history.
+> For current completion and pending items, use `docs/SPATIAL_STATUS.md`
+> and `docs/SPATIAL_CHANGES_FINAL.md` as source of truth.
 
 ```
-Semana 1   TASK-SH-001 + TASK-SH-101
-           Entorno listo, Window.hpp modificado, compila sin errores
+Week 1   TASK-SH-001 + TASK-SH-101
+         Environment ready, Window.hpp modified, compiles without errors
 
-Semana 2   TASK-SH-102
-           ZSpaceManager funcional con tests pasando
+Week 2   TASK-SH-102
+         ZSpaceManager functional with tests passing
 
-Semana 3   TASK-SH-103 + TASK-SH-104 parcial
-           Shaders compilando, perspectiva visible en modo nested
+Week 3   TASK-SH-103 + TASK-SH-104 (partial)
+         Shaders compiling, perspective visible in nested mode
 
-Semana 4   TASK-SH-104 completo + TASK-SH-105
-           Navegación Z funcional con scroll y keybinds
+Week 4   TASK-SH-104 (complete) + TASK-SH-105
+         Z navigation functional with scroll and keybinds
 
-Semana 5   TASK-SH-003 + TASK-SH-103 (config)
-           hyprland.conf con sección spatial parseada
+Week 5   TASK-SH-003 + TASK-SH-103 (config)
+         hyprland.conf with spatial{} section parsed
 
-Semana 6   TASK-SH-106 + TASK-SH-002
-           CI/CD en GitHub Actions, sync script listo
+Week 6   TASK-SH-106 + TASK-SH-002
+         CI/CD on GitHub Actions, sync script ready
 
-── DEMO GRABABLE ──
-           Escritorio 3D con navegación Z, blur por profundidad,
-           tinte atmosférico — diferente a todo lo existente en Linux
+── RECORDABLE DEMO ──
+         3D desktop with Z navigation, depth blur,
+         atmospheric tint — unlike anything existing on Linux
 ```
 
 ---
 
-## Referencias
+## References
 
-- [Hyprland source](https://github.com/hyprwm/Hyprland) — base del fork
-- [wlroots renderer](https://gitlab.freedesktop.org/wlroots/wlroots/-/tree/master/render) — referencia de renderizado
-- [glm docs](https://glm.g-truc.net) — matemáticas 3D, `glm::perspective`
-- [glslangValidator](https://github.com/KhronosGroup/glslang) — validador de shaders
-- [Hyprland wiki — plugins](https://wiki.hyprland.org/Plugins/Development) — contexto del sistema de plugins
+- [Hyprland source](https://github.com/hyprwm/Hyprland) — fork base
+- [wlroots renderer](https://gitlab.freedesktop.org/wlroots/wlroots/-/tree/master/render) — rendering reference
+- [glm docs](https://glm.g-truc.net) — 3D math, `glm::perspective`
+- [glslangValidator](https://github.com/KhronosGroup/glslang) — shader validator
+- [Hyprland wiki — plugins](https://wiki.hyprland.org/Plugins/Development) — plugin system context
 - [Learn OpenGL — depth testing](https://learnopengl.com/Advanced-OpenGL/Depth-testing)
 - [Learn OpenGL — depth of field](https://learnopengl.com/Guest-Articles/2022/Phys.-Based-Bloom)
 
 ---
 
 *Fork spec — Spatial OS / spatial-hypr*  
-*Conectado con: `SPATIAL_OS_SPEC.md`, `NO_FORMS_SPEC.md`*  
-*Última actualización: Febrero 2026*
+*Connected to: `SPATIAL_OS_SPEC.md`, `NO_FORMS_SPEC.md`*  
+*Last updated: February 2026*

@@ -1,90 +1,94 @@
-# Cambios Espaciales [SPATIAL] — Fork Hyprland v0.45.x
+# Spatial Changes [SPATIAL] — Hyprland v0.45.x Fork
 
-> Registro de modificaciones para Spatial OS integración  
-> Última actualización: Febrero 26, 2026
+> Change log for Spatial OS integration  
+> Last updated: February 26, 2026
+>
+> ⚠️ **Note:** This document is kept as an intermediate historical snapshot.
+> The current source of truth is `docs/SPATIAL_STATUS.md` and
+> `docs/SPATIAL_CHANGES_FINAL.md`.
 
 ---
 
-## ✅ Cambios Completados
+## ✅ Completed Changes
 
-### Fase 1: Estructura de Datos Z
+### Phase 1: Z Data Structure
 
 **[SPATIAL] src/Compositor.hpp**
-- Agregado `#include "spatial/ZSpaceManager.hpp"` al inicio (post Color Management)
-- Agregado `inline UP<Spatial::ZSpaceManager> g_pZSpaceManager;` al final
+- Added `#include "spatial/ZSpaceManager.hpp"` near the top (post Color Management)
+- Added `inline UP<Spatial::ZSpaceManager> g_pZSpaceManager;` at the end
 
 **[SPATIAL] src/Compositor.cpp**
-- Agregado inicialización de `g_pZSpaceManager` en `initManagers(STAGE_PRIORITY)`
+- Added initialization of `g_pZSpaceManager` in `initManagers(STAGE_PRIORITY)`
 - Log: "Creating the ZSpaceManager!"
 
 **[SPATIAL] src/desktop/view/Window.hpp**
-- Agregado struct `SSpatialProps` con campos:
-  - `float fZPosition` (posición Z actual)
-  - `float fZTarget` (posición Z objetivo)
-  - `float fZVelocity` (velocidad de animación)
-  - `int iZLayer` (capa discreta 0-N)
-  - `float fDepthNorm` (normalizado 0-1 para shaders)
-  - `bool bZPinned` (no afectada por cámara)
-  - `bool bZManaged` (app controla su Z)
-- Field declarado como `m_sSpatialProps` en clase CWindow
+- Added `SSpatialProps` struct with fields:
+  - `float fZPosition` (current Z position)
+  - `float fZTarget` (target Z position)
+  - `float fZVelocity` (animation velocity)
+  - `int iZLayer` (discrete layer 0-N)
+  - `float fDepthNorm` (normalized 0-1 for shaders)
+  - `bool bZPinned` (not affected by camera)
+  - `bool bZManaged` (app controls its own Z)
+- Declared as `m_sSpatialProps` in `CWindow`
 
 **[SPATIAL] src/managers/input/InputManager.cpp**
-- Interceptación de scroll wheel en `onMouseWheel()`
-- Scroll vertical positivo → `nextLayer()`, negativo → `prevLayer()`
-- Consume el evento (return sin procesar al resto)
+- Scroll wheel interception in `onMouseWheel()`
+- Positive vertical scroll → `nextLayer()`, negative → `prevLayer()`
+- Consumes the event (returns without further processing)
 
 ---
 
-## 🔄 Cambios en Progreso
+## 🔄 Changes In Progress
 
-### Fase 2: Renderizado con Perspectiva
+### Phase 2: Perspective Rendering
 
-**PENDIENTE: src/render/Renderer.cpp**
-- [ ] Implementar `getSpatialProjection()` con glm::perspective
-- [ ] Implementar `getSpatialView()` con glm::lookAt
-- [ ] Integrar depth sorting en renderAllWindows()
-- [ ] Pasar uniforms u_zDepth y u_blurRadius a shaders
+**PENDING: src/render/Renderer.cpp**
+- [ ] Implement `getSpatialProjection()` with glm::perspective
+- [ ] Implement `getSpatialView()` with glm::lookAt
+- [ ] Integrate depth sorting in renderAllWindows()
+- [ ] Pass uniforms u_zDepth and u_blurRadius to shaders
 
-### Fase 3: Integración de Shaders
+### Phase 3: Shader Integration
 
-**PENDIENTE: src/render/Shader.cpp**
-- [ ] Cargar depth_spatial.frag, depth_dof.frag, passthrough_ar.frag
-- [ ] Compilar con glslangValidator validatio
+**PENDING: src/render/Shader.cpp**
+- [ ] Load depth_spatial.frag, depth_dof.frag, passthrough_ar.frag
+- [ ] Compile with glslangValidator validation
 
-**PENDIENTE: Renderer.cpp**
-- [ ] Vincular shaders de profundidad al pipeline
-
----
-
-## 📋 Cambios Pendientes
-
-### Fase 4: Inicialización en renderMonitor()
-
-**PENDIENTE: src/render/Renderer.cpp::renderMonitor()**
-- [ ] Primera llamada: `g_pZSpaceManager->init(w, h)`
-- [ ] Update por frame: `g_pZSpaceManager->update(deltaTime)`
-
-### Fase 5: Asignación de Ventanas a Capas
-
-**PENDIENTE: src/desktop/view/Window.cpp o Compositor.cpp**
-- [ ] Llamar `g_pZSpaceManager->assignWindowToLayer(window, layer)` en mapWindow()
-- [ ] Sincronizar Z en animaciones existentes
-
-### Fase 6: Validación de Configuración
-
-**PENDIENTE: src/spatial/SpatialConfig.cpp integration**
-- [ ] Cargar configuración desde hyprlang
-- [ ] Aplicar parámetros de animación
+**PENDING: Renderer.cpp**
+- [ ] Bind depth shaders into the pipeline
 
 ---
 
-## 🔧 Archivos Nuevos Creados
+## 📋 Pending Changes
+
+### Phase 4: Initialization in renderMonitor()
+
+**PENDING: src/render/Renderer.cpp::renderMonitor()**
+- [ ] First call: `g_pZSpaceManager->init(w, h)`
+- [ ] Per-frame update: `g_pZSpaceManager->update(deltaTime)`
+
+### Phase 5: Assigning Windows to Layers
+
+**PENDING: src/desktop/view/Window.cpp or Compositor.cpp**
+- [ ] Call `g_pZSpaceManager->assignWindowToLayer(window, layer)` in mapWindow()
+- [ ] Synchronize Z with existing animations
+
+### Phase 6: Configuration Validation
+
+**PENDING: src/spatial/SpatialConfig.cpp integration**
+- [ ] Load configuration from hyprlang
+- [ ] Apply animation parameters
+
+---
+
+## 🔧 New Files Created
 
 ```
-✅ src/spatial/ZSpaceManager.hpp/cpp     — Gestor de capas Z
-✅ src/spatial/SpatialConfig.hpp/cpp     — Parser de configuración
-✅ src/spatial/SpatialInputHandler.hpp/cpp — Manejo de inputs
-✅ src/render/shaders/depth_spatial.frag — Shader principal
+✅ src/spatial/ZSpaceManager.hpp/cpp     — Z layer manager
+✅ src/spatial/SpatialConfig.hpp/cpp     — Configuration parser
+✅ src/spatial/SpatialInputHandler.hpp/cpp — Input handling
+✅ src/render/shaders/depth_spatial.frag — Main shader
 ✅ src/render/shaders/depth_dof.frag     — Depth of field
 ✅ src/render/shaders/passthrough_ar.frag — AR passthrough (placeholder)
 ✅ .github/workflows/spatial-build.yml   — CI/CD pipeline
@@ -92,36 +96,36 @@
 
 ---
 
-## 📝 Próximos Pasos
+## 📝 Next Steps
 
-1. **Implementar renderizado 3D** — matrices de perspectiva en Renderer.cpp
-2. **Integrar shaders** — cargar y compilar depth shaders
-3. **Sincronizar animaciones** — usar spring physics en update()
-4. **Configuración** — parser de sección $spatial en hyprland.conf
-5. **Testing** — suite de tests unitarios con Google Test
-
----
-
-## 🚧 Notas de Diseño
-
-- **Thread-safety:** ZSpaceManager usa mutex interno para acceso desde InputManager
-- **Compatibilidad upstream:** Todos los cambios en Hyprland se prefijan con [SPATIAL]
-- **Mínima invasión:** SSpatialProps es struct aislado, no modifica lógica existente de Window
-- **Scroll interception:** Solo captura scroll sin modificadores (permite scroll normal con Shift, Ctrl, etc.)
+1. **Implement 3D rendering** — perspective matrices in Renderer.cpp
+2. **Integrate shaders** — load and compile depth shaders
+3. **Synchronize animations** — use spring physics in update()
+4. **Configuration** — parser for the $spatial section in hyprland.conf
+5. **Testing** — unit test suite with Google Test
 
 ---
 
-## ⚠️ Riesgos y Mitigación
+## 🚧 Design Notes
 
-| Riesgo | Mitigación |
+- **Thread-safety:** ZSpaceManager uses an internal mutex for access from InputManager
+- **Upstream compatibility:** All Hyprland changes are prefixed with [SPATIAL]
+- **Minimal invasiveness:** SSpatialProps is an isolated struct and does not modify existing Window logic
+- **Scroll interception:** Only captures unmodified scroll (normal scroll with Shift/Ctrl still works)
+
+---
+
+## ⚠️ Risks and Mitigation
+
+| Risk | Mitigation |
 |--------|-----------|
-| Conflictos con upstream | Usar [SPATIAL] prefix, mínimos cambios en archivos core |
-| Performance degradation | Spring physics optimizado, input throttling |
-| Memory leaks | valgrind clean en CI/CD, RAII patterns |
-| Z-ordering issues | Depth sorting en Renderer, SSpatialProps vinculado a Window |
+| Upstream conflicts | Use [SPATIAL] prefix, keep core file changes minimal |
+| Performance degradation | Optimized spring physics, input throttling |
+| Memory leaks | valgrind clean in CI/CD, RAII patterns |
+| Z-ordering issues | Depth sorting in Renderer, SSpatialProps linked to Window |
 
 ---
 
-*Documento: SPATIAL_CHANGES.md*  
+*Document: SPATIAL_CHANGES.md*  
 *Fork: spatial-hypr (Hyprland v0.45.x)*  
-*Estado: En desarrollo — Fase 1-2*
+*Status: In development — Phase 1-2*

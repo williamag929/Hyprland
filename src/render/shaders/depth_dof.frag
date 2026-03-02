@@ -1,3 +1,4 @@
+#version 300 es
 // SPATIAL OS: Depth of Field Shader
 // Version: 0.1.0
 //
@@ -14,18 +15,17 @@
 //   tex            (sampler2D) : window texture
 //   fullSize       (vec2)      : screen resolution (Hyprland standard)
 
-#version 430 core
+precision highp float;
+in vec2 v_texcoord;
 
-layout(location = 0) in vec2 v_texCoord;
-layout(location = 1) in vec4 v_color;
-
-layout(binding = 0) uniform sampler2D tex;
+uniform sampler2D tex;
 uniform float u_zDepth;           // normalized depth [0.0, 1.0]
 uniform float u_focusDistance;    // focus plane distance (world units)
 uniform float u_blurRadius;       // max blur radius [1, 20] — matches SHADER_BLUR_RADIUS
+uniform float alpha;              // base window alpha (Hyprland standard)
 uniform vec2 fullSize;            // screen resolution (Hyprland standard)
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 7-tap Gaussian blur (higher quality, higher cost)
@@ -78,14 +78,14 @@ void main() {
     float coc = calculateCoC(u_zDepth);
 
     // Sample with variable blur
-    vec4 color = gaussianBlur7(tex, v_texCoord, coc);
+    vec4 color = gaussianBlur7(tex, v_texcoord, coc);
 
     // Progressive fade for very distant windows
     float farFade = smoothstep(0.7, 1.0, u_zDepth);
     color.a *= (1.0 - farFade * 0.3);  // max 30% fade at the back
 
-    // Multiply by vertex color
-    color *= v_color;
+    // Apply base alpha (Hyprland standard, premultiplied pipeline)
+    color *= alpha;
 
     fragColor = color;
 }

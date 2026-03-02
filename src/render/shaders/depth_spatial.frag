@@ -1,3 +1,4 @@
+#version 300 es
 // SPATIAL OS: Depth Spatial Shader
 // Version: 0.1.0
 //
@@ -15,18 +16,16 @@
 //   tex         (sampler2D): window texture
 //   fullSize    (vec2)     : screen resolution (Hyprland standard)
 
-#version 430 core
+precision highp float;
+in vec2 v_texcoord;
 
-layout(location = 0) in vec2 v_texCoord;
-layout(location = 1) in vec4 v_color;
-
-layout(binding = 0) uniform sampler2D tex;  // window texture
+uniform sampler2D tex;  // window texture
 uniform float u_zDepth;      // normalized: 0.0 = front, 1.0 = back
 uniform float u_blurRadius;  // blur radius in pixels
 uniform float alpha;         // base window alpha (Hyprland standard)
 uniform vec2 fullSize;       // screen resolution (Hyprland standard)
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Adaptive 9-tap Gaussian blur
@@ -75,17 +74,14 @@ float getDepthFade(float zDepth) {
 
 void main() {
     // Sample color with blur
-    vec4 color = sampleBlur(tex, v_texCoord, u_blurRadius);
+    vec4 color = sampleBlur(tex, v_texcoord, u_blurRadius);
 
     // Apply depth-based opacity
     float depthFade = getDepthFade(u_zDepth);
     color.a = mix(color.a, 0.0, depthFade);
 
-    // Apply base alpha (Hyprland standard)
-    color.a *= alpha;
-
-    // Multiply by vertex color (preserves tinting)
-    color *= v_color;
+    // Apply base alpha (Hyprland standard, premultiplied pipeline)
+    color *= alpha;
 
     fragColor = color;
 }

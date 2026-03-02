@@ -916,6 +916,211 @@ grep "FAILED" test-error.log
 
 ---
 
+## 🧭 Spatial Features & How to Use Them
+
+This section explains every spatial UI feature you can interact with once Hyprland is running, plus every option in the `spatial {}` config block and how changing them affects the experience.
+
+---
+
+### What is the Z-Space System?
+
+Spatial Hyprland adds a **fourth axis** to window management. Instead of all windows living on one 2D plane, they are distributed across **4 discrete depth layers**. The camera glides between these layers with spring-physics animation. Windows behind the active layer appear:
+
+- **Smaller** (perspective foreshortening)
+- **More transparent** (opacity fade)
+- **Blurred** (Gaussian depth-of-field)
+
+This creates a genuine sense of 3D depth without requiring a headset.
+
+---
+
+### Layer Reference Table
+
+| Layer | Name | Z Position | Opacity | Blur | Typical Use |
+|-------|------|-----------|---------|------|-------------|
+| **0** | Foreground | `0.0` | 100% | 0 px | Active app — full attention |
+| **1** | Near | `-800.0` | 75% | 1.5 px | Recently used apps |
+| **2** | Mid | `-1600.0` | 40% | 5 px | Background work |
+| **3** | Far | `-2800.0` | 15% | 12 px | System tools / config |
+
+> Layer 0 is always sharp and full-opacity. Deeper layers fade out — you *feel* them recede.
+
+---
+
+### Interacting with Spatial Features
+
+#### 1. Scroll Wheel — Desktop Navigation
+
+> **Important — read before testing:** Scroll-based Z navigation only fires when the cursor is over **empty desktop space** (no focused window under the pointer). When a window is focused and under the pointer, scroll events are passed through normally to the application (document scrolling, browser scrolling, etc. work as expected).
+>
+> If the cursor is over a window, the window receives the scroll event first and Z navigation does not trigger. If you want explicit Z navigation regardless of position, use the **keyboard keybinds** (recommended — see below).
+
+| Situation | Scroll behaviour |
+|-----------|------------------|
+| Cursor over **empty desktop** | Scroll down → deeper layer, scroll up → closer layer |
+| Cursor over **any window** | Scroll passes to the window (document scroll, browser, terminal, etc.) |
+| Any scroll with `SUPER` held | Passes to Hyprland workspace scroll — Z navigation skipped |
+
+> **Note — current implementation status:** The scroll-to-Z-layer hook in `InputManager.cpp` is not yet wired. `SpatialInputHandler::processScrollEvent()` exists and works in isolation but is not yet connected to the Hyprland input pipeline. **The recommended and fully working input method right now is keyboard keybinds** (section 2 below).
+
+#### 2. Keyboard Keybinds (Recommended — Fully Implemented)
+
+Keyboard navigation is the **primary supported method** for Z-layer navigation. Add these to `~/.config/hypr/hyprland.conf`:
+
+```ini
+# Navigate Z layers with keyboard
+bind = $mainMod, bracketright, spatial_next_layer   # SUPER + ] → deeper
+bind = $mainMod, bracketleft,  spatial_prev_layer   # SUPER + [ → closer
+
+# Jump directly to a layer
+bind = $mainMod, F1, spatial_layer, 0    # jump to Foreground
+bind = $mainMod, F2, spatial_layer, 1    # jump to Near
+bind = $mainMod, F3, spatial_layer, 2    # jump to Mid
+bind = $mainMod, F4, spatial_layer, 3    # jump to Far
+```
+
+#### 3. Assigning Windows to Layers
+
+Windows start on layer 0. Move the active window to a different layer with:
+
+```ini
+# Move active window into a depth layer
+bind = $mainMod SHIFT, bracketright, spatial_window_layer_next   # push window deeper
+bind = $mainMod SHIFT, bracketleft,  spatial_window_layer_prev   # pull window closer
+bind = $mainMod SHIFT, F2, spatial_window_layer, 1   # pin window to Near layer
+bind = $mainMod SHIFT, F3, spatial_window_layer, 2   # pin window to Mid layer
+```
+
+#### 4. Verifying Spatial Is Active
+
+Once Hyprland is running:
+
+```bash
+# Confirm ZSpaceManager initialized
+grep -i "ZSpace\|spatial" ~/.cache/hyprland/hyprland.log
+
+# Expected line:
+# DEBUG ]: Creating the ZSpaceManager!
+```
+
+If the log is missing this line, spatial is disabled — check `enabled = true` in your `spatial {}` block.
+
+---
+
+### `spatial {}` Config Block — Complete Reference
+
+The `spatial {}` block lives in `~/.config/hypr/hyprland.conf` (or sourced from `example/hyprland.conf`). All options have sensible defaults — start with the defaults and tune from there.
+
+```ini
+spatial {
+    enabled = true          # Master on/off switch for all Z-layer features
+
+    z_layers = 4            # Number of discrete depth layers  (range: 1–16)
+    z_layer_step = 800      # World-unit distance between layers (default: 800)
+
+    z_animation_stiffness = 200   # Spring stiffness — how fast it snaps (range: 50–2000)
+    z_animation_damping   = 20    # Spring damping  — how much it bounces (range: 5–200)
+
+    z_fov_degrees = 60      # Vertical field of view at layer 0 (range: 30–120)
+    z_near_plane  = 0.1     # Perspective near clip plane (keep < 1.0)
+    z_far_plane   = 10000   # Perspective far clip plane (keep > max z_layer_step)
+}
+```
+
+#### Option Details
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `enabled` | `true` | `false` disables all Z navigation and renders everything flat. Useful for debugging or when AR/VR is not needed. |
+| `z_layers` | `4` | How many depth layers exist. `1` = no Z at all (flat). `4` = spec default. `8` gives more granularity but each layer gets thinner visually. |
+| `z_layer_step` | `800` | World-unit gap between adjacent layers. Larger values = more dramatic depth difference. Smaller = layers feel close together. Try `400` for subtle depth, `1600` for dramatic. |
+| `z_animation_stiffness` | `200` | Controls how quickly the camera spring accelerates. `50` = slow and floaty. `500` = near-instant snap. |
+| `z_animation_damping` | `20` | Controls how much the camera overshoots and bounces. `5` = bouncy/elastic. `100` = overdamped, no bounce at all. The ratio `stiffness/damping` determines character — keep `damping ≈ stiffness/10` for a natural feel. |
+| `z_fov_degrees` | `60` | Field of view at the front layer. `60` is natural. `90` gives a fisheye effect. The FOV interpolates from `60` to `75` across layers (cinematic pull-back). |
+| `z_near_plane` | `0.1` | Near clip plane. Only change if windows very close to the camera clip incorrectly. |
+| `z_far_plane` | `10000` | Far clip plane. Must be larger than `z_layers × z_layer_step` or the deepest layer will be clipped. |
+
+#### Preset Profiles
+
+Paste these into your config to quickly switch between styles:
+
+```ini
+# ── Snappy / Productivity ────────────────────────────
+spatial {
+    enabled = true
+    z_layers = 4
+    z_layer_step = 800
+    z_animation_stiffness = 400
+    z_animation_damping   = 35
+    z_fov_degrees = 60
+    z_near_plane  = 0.1
+    z_far_plane   = 10000
+}
+
+# ── Cinematic / Demo mode ────────────────────────────
+spatial {
+    enabled = true
+    z_layers = 4
+    z_layer_step = 1200
+    z_animation_stiffness = 120
+    z_animation_damping   = 12
+    z_fov_degrees = 75
+    z_near_plane  = 0.1
+    z_far_plane   = 15000
+}
+
+# ── Subtle / Minimal depth hint ──────────────────────
+spatial {
+    enabled = true
+    z_layers = 4
+    z_layer_step = 400
+    z_animation_stiffness = 300
+    z_animation_damping   = 28
+    z_fov_degrees = 55
+    z_near_plane  = 0.1
+    z_far_plane   = 6000
+}
+
+# ── Disabled (flat Hyprland, no Z) ───────────────────
+spatial {
+    enabled = false
+}
+```
+
+---
+
+### Quick Test Sequence After Launch
+
+Run these in order to confirm every spatial feature works end-to-end:
+
+```bash
+# 1. Inside your spatial Hyprland session — open 3 terminals
+WAYLAND_DISPLAY=wayland-1 kitty &
+WAYLAND_DISPLAY=wayland-1 kitty &
+WAYLAND_DISPLAY=wayland-1 kitty &
+
+# 2. Navigate to a deeper layer with the keyboard (recommended)
+#    Press SUPER + ] → windows should scale down and blur
+#    Press SUPER + [ → they return to full size/sharpness
+#    (Scroll wheel over empty desktop also works once InputManager hook is wired)
+
+# 3. Confirm active layer via log (run from outside the session or in another tty)
+grep -i "layer\|ZSpace\|camera" ~/.cache/hyprland/hyprland.log | tail -20
+
+# 4. Check no crash report was generated
+ls ~/.cache/hyprland/
+# If only hyprland.log is present — good. CrashReport means Hyprland exited abnormally.
+```
+
+| What you should see | Meaning |
+|---------------------|---------|
+| Windows shrink and fade when scrolling down | Perspective + opacity working |
+| Soft blur on background windows | depth_spatial.frag shader active |
+| Smooth spring animation between layers | Z animation stiffness/damping working |
+| `Creating the ZSpaceManager!` in log | ZSpaceManager init OK |
+
+---
+
 ## ⏱️ Timeline
 
 | Phase | Duration | Description |

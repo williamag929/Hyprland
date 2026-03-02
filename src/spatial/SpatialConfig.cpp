@@ -37,11 +37,34 @@ namespace Spatial {
     }
 
     bool SpatialConfig::reload() {
-        if (!g_pConfigManager) {
-            std::cerr << "[SpatialConfig] reload() called before ConfigManager is initialized\n";
+        if (g_pConfigManager) {
+            g_pConfigManager->onSpatialConfigReload();
+            m_bLoaded = true;
+            return true;
+        }
+
+        if (m_sConfigPath.empty()) {
+            std::cerr << "[SpatialConfig] reload() called before first successful load\n";
             return false;
         }
-        g_pConfigManager->onSpatialConfigReload();
+
+        // Inline the file-read path to avoid calling the deprecated loadFromFile().
+        std::ifstream file(m_sConfigPath);
+        if (!file.is_open()) {
+            std::cerr << "[SpatialConfig] reload() failed to open: " << m_sConfigPath << "\n";
+            m_bLoaded = false;
+            return false;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        file.close();
+
+        if (!parseConfigSection(buffer.str())) {
+            m_bLoaded = false;
+            return false;
+        }
+
         m_bLoaded = true;
         return true;
     }
