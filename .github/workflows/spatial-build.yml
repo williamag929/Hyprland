@@ -16,8 +16,9 @@ jobs:
     steps:
       - name: Update system and install dependencies
         run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm \
+          sed -i 's/SigLevel    = Required DatabaseOptional/SigLevel    = Optional TrustAll/' /etc/pacman.conf
+          pacman --noconfirm --noprogressbar -Syyu
+          pacman --noconfirm --noprogressbar -Sy \
             base-devel cmake meson git clang llvm \
             wayland wayland-protocols libdrm mesa \
             libxkbcommon libinput pixman \
@@ -25,7 +26,7 @@ jobs:
             xorg-server-xvfb \
             glm spdlog nlohmann-json \
             gtest \
-            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprlang hyprcursor hyprland-protocols aquamarine hyprutils \
             hyprwayland-scanner pkgconf seatd \
             glslang vulkan-headers systemd
 
@@ -107,13 +108,14 @@ jobs:
     steps:
       - name: Install minimal dependencies
         run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm \
+          sed -i 's/SigLevel    = Required DatabaseOptional/SigLevel    = Optional TrustAll/' /etc/pacman.conf
+          pacman --noconfirm --noprogressbar -Syyu
+          pacman --noconfirm --noprogressbar -Sy \
             base-devel cmake clang \
             wayland wayland-protocols libdrm mesa \
             libxkbcommon libinput pixman \
             glm spdlog nlohmann-json \
-            hyprlang hyprland-protocols aquamarine hyprutils \
+            hyprlang hyprcursor hyprland-protocols aquamarine hyprutils \
             hyprwayland-scanner pkgconf seatd \
             glslang vulkan-headers systemd
 
