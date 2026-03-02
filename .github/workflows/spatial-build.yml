@@ -26,7 +26,7 @@ jobs:
             glm spdlog nlohmann-json \
             gtest \
             hyprlang hyprland-protocols aquamarine hyprutils \
-            hyprwayland-scanner pkgconf seatd libseat \
+            hyprwayland-scanner pkgconf seatd \
             glslang vulkan-headers systemd
 
       - name: Checkout repository
@@ -114,7 +114,7 @@ jobs:
             libxkbcommon libinput pixman \
             glm spdlog nlohmann-json \
             hyprlang hyprland-protocols aquamarine hyprutils \
-            hyprwayland-scanner pkgconf seatd libseat \
+            hyprwayland-scanner pkgconf seatd \
             glslang vulkan-headers systemd
 
       - name: Checkout repository
