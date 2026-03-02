@@ -19,7 +19,6 @@
 
 precision highp float;
 in vec2 v_texcoord;
-in vec4 v_color;
 
 uniform sampler2D tex;  // window texture
 uniform float u_zDepth;      // normalized: 0.0 = front, 1.0 = back
@@ -82,11 +81,8 @@ void main() {
     float depthFade = getDepthFade(u_zDepth);
     color.a = mix(color.a, 0.0, depthFade);
 
-    // Apply base alpha (Hyprland standard)
-    color.a *= alpha;
-
-    // Multiply by vertex color (preserves tinting)
-    color *= v_color;
+    // Apply base alpha (Hyprland standard, premultiplied pipeline)
+    color *= alpha;
 
     fragColor = color;
 }

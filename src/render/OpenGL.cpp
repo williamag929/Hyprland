@@ -1469,7 +1469,9 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
             shader->setUniformMatrix4fv(SHADER_SPATIAL_VIEW, 1, GL_FALSE, m_renderData.spatialView);
 
             // [SPATIAL] Per-window depth scalars consumed by the fragment shader
-            const float zNorm = (m_renderData.currentWindow->m_sSpatialProps.fZPosition - (-2800.0f)) / 2800.0f;
+            // Normalize depth so layer 0 (z=0) maps to 0.0 and far layer (z=-2800) maps to 1.0.
+            // Previous mapping was inverted and could make foreground window content fully transparent.
+            const float zNorm = -m_renderData.currentWindow->m_sSpatialProps.fZPosition / 2800.0f;
             shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
 
             const float blurRadius = g_pZSpaceManager->getWindowBlurRadius(static_cast<void*>(m_renderData.currentWindow.lock().get()));

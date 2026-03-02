@@ -18,12 +18,12 @@
 
 precision highp float;
 in vec2 v_texcoord;
-in vec4 v_color;
 
 uniform sampler2D tex;
 uniform float u_zDepth;           // normalized depth [0.0, 1.0]
 uniform float u_focusDistance;    // focus plane distance (world units)
 uniform float u_blurRadius;       // max blur radius [1, 20] — matches SHADER_BLUR_RADIUS
+uniform float alpha;              // base window alpha (Hyprland standard)
 uniform vec2 fullSize;            // screen resolution (Hyprland standard)
 
 layout(location = 0) out vec4 fragColor;
@@ -85,8 +85,8 @@ void main() {
     float farFade = smoothstep(0.7, 1.0, u_zDepth);
     color.a *= (1.0 - farFade * 0.3);  // max 30% fade at the back
 
-    // Multiply by vertex color
-    color *= v_color;
+    // Apply base alpha (Hyprland standard, premultiplied pipeline)
+    color *= alpha;
 
     fragColor = color;
 }
