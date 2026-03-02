@@ -91,7 +91,9 @@ std::expected<CPlugin*, std::string> CPluginSystem::loadPluginInternal(const std
     // Restore signal mask on all return paths via RAII.
     struct SSigMaskGuard {
         sigset_t* old;
-        ~SSigMaskGuard() { pthread_sigmask(SIG_SETMASK, old, nullptr); }
+        ~SSigMaskGuard() {
+            pthread_sigmask(SIG_SETMASK, old, nullptr);
+        }
     } sigGuard{&oldMask};
 
     auto* const PLUGIN = m_loadedPlugins.emplace_back(makeUnique<CPlugin>()).get();
