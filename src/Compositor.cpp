@@ -665,6 +665,15 @@ void CCompositor::initManagers(eManagersInitStage stage) {
                 // Read the actual resulting layer back (manager may clamp at boundaries)
                 // and keep handler's internal counter in sync
                 g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
+
+                // [SPATIAL] Promote focused window into the active layer so scroll/keybind
+                // transitions have immediate visible effect in desktop mode.
+                if (layerSet) {
+                    const auto PFOCUSED = Desktop::focusState()->window();
+                    if (PFOCUSED)
+                        g_pZSpaceManager->assignWindowToLayer(PFOCUSED.get(), g_pZSpaceManager->getActiveLayer());
+                }
+
                 // [SPATIAL] Damage all monitors so the opacity/blur changes from the new
                 // layer assignment are composited immediately — without this the old frame
                 // is frozen until an unrelated content change triggers a repaint.

@@ -159,6 +159,7 @@ CKeybindManager::CKeybindManager() {
     m_dispatchers["spatial_next_layer"]             = spatialNextLayer;
     m_dispatchers["spatial_prev_layer"]             = spatialPrevLayer;
     m_dispatchers["spatial_layer"]                  = spatialLayer;
+    m_dispatchers["spatial_toggle_scroll"]          = spatialToggleScroll;
 
     m_scrollTimer.reset();
 
@@ -1624,11 +1625,26 @@ SDispatchResult CKeybindManager::spatialLayer(std::string args) {
 
     g_pSpatialInputHandler->setCurrentLayer(g_pZSpaceManager->getActiveLayer());
 
+    const auto PFOCUSED = Desktop::focusState()->window();
+    if (PFOCUSED)
+        g_pZSpaceManager->assignWindowToLayer(PFOCUSED.get(), g_pZSpaceManager->getActiveLayer());
+
     if (g_pHyprRenderer && g_pCompositor) {
         for (auto const& m : g_pCompositor->m_monitors)
             g_pHyprRenderer->damageMonitor(m);
     }
 
+    return {};
+}
+
+SDispatchResult CKeybindManager::spatialToggleScroll(std::string args) {
+    if (!g_pSpatialInputHandler)
+        return {.success = false, .error = "Spatial input handler is not initialized"};
+
+    if (!g_pSpatialInputHandler->isEnabled())
+        return {.success = false, .error = "Spatial navigation is disabled (set spatial:enabled = true)"};
+
+    g_pSpatialInputHandler->toggleScrollNavigation();
     return {};
 }
 

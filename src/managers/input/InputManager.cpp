@@ -890,7 +890,7 @@ void CInputManager::onMouseWheel(IPointer::SAxisEvent e, SP<IPointer> pointer) {
     //   - No modifier + vertical scroll → route through SpatialInputHandler accumulator.
     //   - passEvent is consumed (set false) only when a discrete layer step actually fired.
     //     Scroll at a boundary layer (already top/bottom) still passes through to the surface.
-    if (passEvent && e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && g_pSpatialInputHandler) {
+    if (passEvent && e.axis == WL_POINTER_AXIS_VERTICAL_SCROLL && g_pSpatialInputHandler && g_pSpatialInputHandler->isScrollNavigationEnabled()) {
         const bool hasMod      = (getModsFromAllKBs() != 0);
         const int  layerBefore = g_pZSpaceManager ? g_pZSpaceManager->getActiveLayer() : -1;
 

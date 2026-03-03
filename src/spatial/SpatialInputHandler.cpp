@@ -24,6 +24,10 @@ namespace Spatial {
         if (!m_bEnabled)
             return;
 
+        // Scroll-based spatial navigation disabled — pass through unchanged
+        if (!m_bScrollNavigation)
+            return;
+
         // If modifier is pressed, pass through to Hyprland's normal scroll handler
         if (hasModifier)
             return;
@@ -70,6 +74,11 @@ namespace Spatial {
             m_fnLayerChangeCallback(m_iCurrentLayer, oldLayer);
     }
 
+    bool SpatialInputHandler::toggleScrollNavigation() {
+        m_bScrollNavigation = !m_bScrollNavigation;
+        return m_bScrollNavigation;
+    }
+
     void SpatialInputHandler::setCurrentLayer(int layer) {
         if (layer >= 0 && layer < Z_LAYERS_COUNT)
             m_iCurrentLayer = layer;
@@ -103,6 +112,14 @@ namespace Spatial {
         return m_bEnabled;
     }
 
+    void SpatialInputHandler::setScrollNavigationEnabled(bool enabled) {
+        m_bScrollNavigation = enabled;
+    }
+
+    bool SpatialInputHandler::isScrollNavigationEnabled() const {
+        return m_bScrollNavigation;
+    }
+
     // ── AR Passthrough ───────────────────────────────────────────────────────────
 
     void SpatialInputHandler::setArPassthrough(bool enabled) {
@@ -123,7 +140,8 @@ namespace Spatial {
 
     void SpatialInputHandler::debugPrint() const {
         std::cout << "[SpatialInputHandler]" << "  current_layer=" << m_iCurrentLayer << "  sensitivity=" << m_fScrollSensitivity << "  threshold=" << m_iScrollThreshold
-                  << "  accumulator=" << m_fScrollAccumulator << "  layer_cb=" << (m_fnLayerChangeCallback ? "set" : "null")
+                  << "  accumulator=" << m_fScrollAccumulator << "  scroll_nav=" << (m_bScrollNavigation ? "on" : "off")
+                  << "  layer_cb=" << (m_fnLayerChangeCallback ? "set" : "null")
                   << "  camera_cb=" << (m_fnCameraZChangeCallback ? "set" : "null") << "\n";
         std::cout.flush();
     }

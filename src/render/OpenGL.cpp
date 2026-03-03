@@ -1474,7 +1474,11 @@ void CHyprOpenGLImpl::renderTextureInternal(SP<CTexture> tex, const CBox& box, c
             const float zNorm = -m_renderData.currentWindow->m_sSpatialProps.fZPosition / 2800.0f;
             shader->setUniformFloat(SHADER_Z_DEPTH, std::clamp(zNorm, 0.0f, 1.0f));
 
-            const float blurRadius = g_pZSpaceManager->getWindowBlurRadius(static_cast<void*>(m_renderData.currentWindow.lock().get()));
+            const auto  focusedWindow    = Desktop::focusState()->window();
+            const bool  isFocused        = focusedWindow && m_renderData.currentWindow == focusedWindow;
+            const float layerBlurRadius  = g_pZSpaceManager->getWindowBlurRadius(static_cast<void*>(m_renderData.currentWindow.lock().get()));
+            const float blurRadius       = isFocused ? 0.0f : layerBlurRadius;
+
             shader->setUniformFloat(SHADER_BLUR_RADIUS, blurRadius);
 
             // [SPATIAL] The blur texel computation in depth_spatial.frag / depth_dof.frag uses

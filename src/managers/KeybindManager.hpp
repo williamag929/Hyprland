@@ -243,6 +243,7 @@ class CKeybindManager {
     static SDispatchResult spatialNextLayer(std::string);
     static SDispatchResult spatialPrevLayer(std::string);
     static SDispatchResult spatialLayer(std::string);
+    static SDispatchResult spatialToggleScroll(std::string);
 
     friend class CCompositor;
     friend class CInputManager;

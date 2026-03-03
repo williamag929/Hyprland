@@ -47,6 +47,10 @@ namespace Spatial {
         /// @brief Process "spatial_prev_layer" keybind event
         void processPrevLayerKeybind();
 
+        /// @brief Toggle whether mouse wheel controls spatial Z navigation
+        /// @return true if spatial scroll mode is enabled after toggle
+        bool toggleScrollNavigation();
+
         // ── Layer State Sync ──────────────────────────────────────────────────────
         /// @brief Notify handler of the compositor's current layer index
         /// @param layer  Current active layer from ZSpaceManager (0…Z_LAYERS_COUNT-1)
@@ -67,6 +71,14 @@ namespace Spatial {
         /// @brief Get whether spatial navigation is currently active
         /// @return true if enabled
         [[nodiscard]] bool isEnabled() const;
+
+        /// @brief Enable or disable mouse-wheel driven spatial navigation
+        /// @param enabled  true = wheel controls Z layers, false = wheel passes through to apps
+        void setScrollNavigationEnabled(bool enabled);
+
+        /// @brief Get whether mouse-wheel driven spatial navigation is active
+        /// @return true when processScrollEvent() should consume wheel deltas
+        [[nodiscard]] bool isScrollNavigationEnabled() const;
 
         // ── AR Passthrough ───────────────────────────────────────────────────────
 
@@ -113,6 +125,7 @@ namespace Spatial {
         int                   m_iScrollThreshold      = 120;   ///< Scroll units required to trigger one layer step
         int                   m_iCurrentLayer         = 0;     ///< Mirror of ZSpaceManager's active layer index
         bool                  m_bEnabled              = true;  ///< When false, all Z navigation inputs are silently ignored
+        bool                  m_bScrollNavigation     = false; ///< When true, mouse wheel drives spatial layer navigation
         bool                  m_bArPassthroughEnabled = false; ///< [SPATIAL] TASK-SH-301: AR passthrough blend active
         float                 m_fArAlpha              = 1.0f;  ///< [SPATIAL] TASK-SH-301: global AR blend weight [0–1]
 
